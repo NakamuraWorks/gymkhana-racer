@@ -40,7 +40,7 @@ function create() {
   // 車のスプライト
   car = this.matter.add.image(window.innerWidth / 2, window.innerHeight / 2, 'car');
   car.setOrigin(0.5, 0.5);
-  car.setDisplaySize(128, 128); // 車のサイズを128x128pxに設定
+  car.setDisplaySize(64, 64); // 車のサイズを128x128pxに設定
   car.setRotation(-Math.PI / 2); // 表示用：左に90度回転（-π/2ラジアン）
   car.setFrictionAir(0.025); // 空気抵抗を増やす（摩擦増加）
   car.setMass(30);

@@ -42,7 +42,7 @@ function create() {
   car.setOrigin(0.5, 0.5);
   car.setDisplaySize(128, 128); // 車のサイズを128x128pxに設定
   car.setRotation(-Math.PI / 2); // 表示用：左に90度回転（-π/2ラジアン）
-  car.setFrictionAir(0.01); // 空気抵抗をさらに減らす
+  car.setFrictionAir(0.025); // 空気抵抗を増やす（摩擦増加）
   car.setMass(30);
   car.setFixedRotation(false); // Matter用：回転を許可
   
@@ -51,46 +51,49 @@ function create() {
   car.body.render.sprite.yOffset = 0.5;
   
   // 横滑りを発生させるために摩擦を調整
-  car.setFriction(0.05); // 摩擦をさらに下げる
+  car.setFriction(0.12); // 摩擦を増やす
 }
 
 function update() {
-  const rotationSpeed = 0.001; // 修正前の1割増し（0.05 → 0.055）
-  const forceMagnitude = 0.008;
-  const angularDamping = 0.98; // 角速度の減衰率（1に近いほど長く回転が続く）
+  const rotationSpeed = 0.002; // （未使用）旋回速度の基準値
+  const forceMagnitude = 0.01152; // アクセルON時の前進加速力
 
-  // 現在の速度を取得
-  const velocity = car.body.velocity;
-  const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-  const currentAngularVelocity = car.body.angularVelocity;
+  // 物理演算用の各種値
+  const velocity = car.body.velocity; // 速度ベクトル
+  const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y); // 速度の大きさ
+  const currentAngularVelocity = car.body.angularVelocity; // 現在の角速度（ヨー速度）
+  // 速度に応じて角速度減衰率を変化（低速で強く、高速で弱く）
+  let angularDamping = 0.99806 - Math.min(speed / 18, 1) * 0.01806;
   
-  // 左右旋回（速度に比例して旋回力を調整）
-  // 速度0.5から開始して、2.8で最大旋回速度に到達するよう滑らかに補間
-  const minSpeed = 0.5;
-  const maxSpeed = 1.5; // 修正後の最大速度（1.0に変更）
-  const speedFactor = Math.max(0, Math.min(1, (speed - minSpeed) / (maxSpeed - minSpeed)));
-  const speedBasedRotation = rotationSpeed * speedFactor;
-  
-  if (cursors.left.isDown && speed > 0.3) {
-    // 左旋回：現在の角速度が右回転の場合はカウンターステア効果
-    if (currentAngularVelocity > 0) {
-      // カウンターステア：より強い減衰
-      car.setAngularVelocity(currentAngularVelocity * 0.85 - speedBasedRotation);
-    } else {
-      car.setAngularVelocity(currentAngularVelocity - speedBasedRotation);
-    }
-  } else if (cursors.right.isDown && speed > 0.3) {
-    // 右旋回：現在の角速度が左回転の場合はカウンターステア効果
-    if (currentAngularVelocity < 0) {
-      // カウンターステア：より強い減衰
-      car.setAngularVelocity(currentAngularVelocity * 0.85 + speedBasedRotation);
-    } else {
-      car.setAngularVelocity(currentAngularVelocity + speedBasedRotation);
-    }
-  } else {
-    // キーが離されている場合：角速度を徐々に減衰させる（完全には止めない）
-    car.setAngularVelocity(currentAngularVelocity * angularDamping);
-  }
+  // --- ステアは「進みたい方向ベクトル」指示のみ、旋回はトラクション依存 ---
+  // ステア入力値（-1:左, 0:直進, +1:右）
+  let steerInput = 0;
+  if (cursors.left.isDown) steerInput -= 1;
+  if (cursors.right.isDown) steerInput += 1;
+  // 最大ステア角（ラジアン）
+  const maxSteerAngle = Math.PI / 4; // 45度
+  // 目標進行方向（車体向き＋ステア角）
+  const targetDirection = car.rotation + Math.PI / 2 + steerInput * maxSteerAngle;
+  // 現在の車体の物理的向き
+  let heading = car.rotation + Math.PI / 2;
+  // 車体向きと目標進行方向の差分（旋回すべき角度）
+  let angleDiff = Math.atan2(Math.sin(targetDirection - heading), Math.cos(targetDirection - heading));
+  // 前進成分（車体向き方向の速度、トラクションの強さ）
+  const forward = { x: Math.cos(heading), y: Math.sin(heading) };
+  const vForward = velocity.x * forward.x + velocity.y * forward.y;
+  // 横滑り成分（車体に対して横方向の速度）
+  const side = { x: -Math.sin(heading), y: Math.cos(heading) };
+  const vSide = velocity.x * side.x + velocity.y * side.y;
+  // スリップアングル（進行方向と車体向きのズレ）
+  let slipAngle = Math.atan2(vSide, vForward);
+  // スリップアングルが大きいと旋回効果を減衰
+  let slipLoss = 1.0 - Math.min(Math.abs(slipAngle) / (Math.PI / 2), 1.0) * 0.7;
+  // トラクション（前進成分が強いほど旋回が効く）
+  let traction = Math.max(0, Math.min(1, (Math.abs(vForward) - 0.2) / 1.2));
+  // 旋回感度（トラクション・スリップアングルで減衰、車両ごとに調整可能）
+  let steerRate = 0.0018 * traction * slipLoss;
+  // 旋回反応（慣性＋目標方向への補正）
+  car.setAngularVelocity(currentAngularVelocity * angularDamping + angleDiff * steerRate);
 
   // アクセル（Xキー）
   if (keyX.isDown) {

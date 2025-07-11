@@ -29,9 +29,14 @@ let car;
 
 function preload() {
   this.load.image('car', 'car.png');
+  this.load.image('bg', 'background.png'); // 背景画像を読み込み
 }
 
 function create() {
+  // 背景画像を画面中央に表示（ウィンドウサイズに合わせて拡大）
+  const bg = this.add.image(window.innerWidth / 2, window.innerHeight / 2, 'bg');
+  bg.setOrigin(0.5, 0.5);
+  bg.setDisplaySize(window.innerWidth, window.innerHeight);
   // 入力設定
   cursors = this.input.keyboard.createCursorKeys();
   keyX = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
@@ -40,9 +45,9 @@ function create() {
   // 車のスプライト
   car = this.matter.add.image(window.innerWidth / 2, window.innerHeight / 2, 'car');
   car.setOrigin(0.5, 0.5);
-  car.setDisplaySize(64, 64); // 車のサイズを128x128pxに設定
+  car.setDisplaySize(42, 42); // 車のサイズを128x128pxに設定
   car.setRotation(-Math.PI / 2); // 表示用：左に90度回転（-π/2ラジアン）
-  car.setFrictionAir(0.025); // 空気抵抗を増やす（摩擦増加）
+  car.setFrictionAir(0.025); // 空気抵抗を減らして最高速UP
   car.setMass(30);
   car.setFixedRotation(false); // Matter用：回転を許可
   
@@ -51,12 +56,12 @@ function create() {
   car.body.render.sprite.yOffset = 0.5;
   
   // 横滑りを発生させるために摩擦を調整
-  car.setFriction(0.12); // 摩擦を増やす
+  car.setFriction(0.125); // 摩擦を増やす
 }
 
 function update() {
   const rotationSpeed = 0.002; // （未使用）旋回速度の基準値
-  const forceMagnitude = 0.01152; // アクセルON時の前進加速力
+  const forceMagnitude = 0.012; // アクセルON時の前進加速力（加速を弱める）
 
   // 物理演算用の各種値
   const velocity = car.body.velocity; // 速度ベクトル
@@ -71,7 +76,7 @@ function update() {
   if (cursors.left.isDown) steerInput -= 1;
   if (cursors.right.isDown) steerInput += 1;
   // 最大ステア角（ラジアン）
-  const maxSteerAngle = Math.PI / 4; // 45度
+  const maxSteerAngle = Math.PI / 3; // 60度
   // 目標進行方向（車体向き＋ステア角）
   const targetDirection = car.rotation + Math.PI / 2 + steerInput * maxSteerAngle;
   // 現在の車体の物理的向き
@@ -89,9 +94,9 @@ function update() {
   // スリップアングルが大きいと旋回効果を減衰
   let slipLoss = 1.0 - Math.min(Math.abs(slipAngle) / (Math.PI / 2), 1.0) * 0.7;
   // トラクション（前進成分が強いほど旋回が効く）
-  let traction = Math.max(0, Math.min(1, (Math.abs(vForward) - 0.2) / 1.2));
+  let traction = Math.max(0, Math.min(1, (Math.abs(vForward) - 0.05) / 0.7)); // 低速でも舵効きを良く
   // 旋回感度（トラクション・スリップアングルで減衰、車両ごとに調整可能）
-  let steerRate = 0.0018 * traction * slipLoss;
+  let steerRate = 0.0022 * traction * slipLoss; // 舵の効きを強化
   // 旋回反応（慣性＋目標方向への補正）
   car.setAngularVelocity(currentAngularVelocity * angularDamping + angleDiff * steerRate);
 
@@ -103,8 +108,13 @@ function update() {
     car.applyForce({ x: forceX, y: forceY });
   }
 
-  // ブレーキ（Zキー）→速度を減少させる
+  // ブレーキ（Zキー）→速度を減少させる（減衰率を弱めて自然減速も緩やかに）
   if (keyZ.isDown) {
-    car.setVelocity(car.body.velocity.x * 0.95, car.body.velocity.y * 0.95);
+    car.setVelocity(car.body.velocity.x * 0.98, car.body.velocity.y * 0.98);
+  }
+
+  // スロットルオフ時の自然減速をもっと弱く（アクセルもブレーキも押していない場合のみ）
+  if (!keyX.isDown && !keyZ.isDown) {
+    car.setVelocity(car.body.velocity.x * 0.995, car.body.velocity.y * 0.995);
   }
 }

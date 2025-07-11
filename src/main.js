@@ -108,7 +108,7 @@ function update() {
     car.applyForce({ x: forceX, y: forceY });
   }
 
-  // ブレーキ（Zキー）→速度を減少させる（減衰率を弱めて自然減速も緩やかに）
+  // ブレーキ（Zキー）
   if (keyZ.isDown) {
     car.setVelocity(car.body.velocity.x * 0.98, car.body.velocity.y * 0.98);
   }

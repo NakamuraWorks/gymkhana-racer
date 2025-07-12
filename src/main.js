@@ -72,6 +72,8 @@ function update() {
   if (!gamepad && this.input.gamepad.total > 0) {
     gamepad = this.input.gamepad.getPad(0);
   }
+  // アクセル入力（ゲームパッド）の状態を先に取得
+  const padAccel = gamepad && gamepad.buttons && gamepad.buttons.length > 0 ? gamepad.buttons[0].pressed : false;
 
   const rotationSpeed = 0.002;
   const forceMagnitude = 0.012; // アクセルON時の前進加速力（加速を弱める）
@@ -80,8 +82,8 @@ function update() {
   const velocity = car.body.velocity; // 速度ベクトル
   const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y); // 速度の大きさ
   const currentAngularVelocity = car.body.angularVelocity; // 現在の角速度（ヨー速度）
-  // 速度に応じて角速度減衰率を変化（低速で強く、高速で弱く）
-  let angularDamping = 0.99806 - Math.min(speed / 18, 1) * 0.01806;
+  // 速度に応じて角速度減衰率を変化（低速で強く、高速で弱く）、全体的には若干弱め
+  let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
   
   // --- ステアは「進みたい方向ベクトル」指示のみ、旋回はトラクション依存 ---
   // ステア入力値（-1:左, 0:直進, +1:右）
@@ -113,12 +115,11 @@ function update() {
   // トラクション（前進成分が強いほど旋回が効く）
   let traction = Math.max(0, Math.min(1, (Math.abs(vForward) - 0.05) / 0.7)); // 低速でも舵効きを良く
   // 旋回感度（トラクション・スリップアングルで減衰、車両ごとに調整可能）
-  let steerRate = 0.0022 * traction * slipLoss; // 舵の効きを強化
+  let steerRate = 0.00264 * traction * slipLoss; // 舵の効きをさらに20%強化
   // 旋回反応（慣性＋目標方向への補正）
   car.setAngularVelocity(currentAngularVelocity * angularDamping + angleDiff * steerRate);
 
   // アクセル（Xキー）
-  const padAccel = gamepad && gamepad.buttons && gamepad.buttons.length > 0 ? gamepad.buttons[0].pressed : false;
   if (keyX.isDown || padAccel) {
     const angle = car.rotation + Math.PI / 2; // 物理演算用の角度補正
     const forceX = Math.cos(angle) * forceMagnitude;

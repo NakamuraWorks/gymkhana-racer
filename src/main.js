@@ -19,6 +19,9 @@ const config = {
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  input: {
+    gamepad: true
   }
 };
 
@@ -26,6 +29,7 @@ const game = new Phaser.Game(config);
 
 let cursors, keyX, keyZ;
 let car;
+let gamepad;  // ゲームパッド
 
 function preload() {
   this.load.image('car', 'car.png');
@@ -41,6 +45,10 @@ function create() {
   cursors = this.input.keyboard.createCursorKeys();
   keyX = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
   keyZ = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+  // ゲームパッド設定
+  this.input.gamepad.start();
+  this.input.gamepad.once('connected', pad => { gamepad = pad; });
+
 
   // 車のスプライト
   car = this.matter.add.image(window.innerWidth / 2, window.innerHeight / 2, 'car');
@@ -60,7 +68,12 @@ function create() {
 }
 
 function update() {
-  const rotationSpeed = 0.002; // （未使用）旋回速度の基準値
+  // 未設定gamepadがあれば取得
+  if (!gamepad && this.input.gamepad.total > 0) {
+    gamepad = this.input.gamepad.getPad(0);
+  }
+
+  const rotationSpeed = 0.002;
   const forceMagnitude = 0.012; // アクセルON時の前進加速力（加速を弱める）
 
   // 物理演算用の各種値
@@ -75,6 +88,10 @@ function update() {
   let steerInput = 0;
   if (cursors.left.isDown) steerInput -= 1;
   if (cursors.right.isDown) steerInput += 1;
+  if (gamepad && gamepad.axes && gamepad.axes.length > 0) {
+    const sx = gamepad.axes[0].getValue();
+    if (Math.abs(sx) > 0.1) steerInput += sx;
+  }
   // 最大ステア角（ラジアン）
   const maxSteerAngle = Math.PI / 3; // 60度
   // 目標進行方向（車体向き＋ステア角）
@@ -101,20 +118,27 @@ function update() {
   car.setAngularVelocity(currentAngularVelocity * angularDamping + angleDiff * steerRate);
 
   // アクセル（Xキー）
-  if (keyX.isDown) {
+  const padAccel = gamepad && gamepad.buttons && gamepad.buttons.length > 0 ? gamepad.buttons[0].pressed : false;
+  if (keyX.isDown || padAccel) {
     const angle = car.rotation + Math.PI / 2; // 物理演算用の角度補正
     const forceX = Math.cos(angle) * forceMagnitude;
     const forceY = Math.sin(angle) * forceMagnitude;
+  // ゲームパッド左スティックX軸
     car.applyForce({ x: forceX, y: forceY });
   }
 
+  if (gamepad && gamepad.axes && gamepad.axes.length > 0) {
+    const sx = gamepad.axes[0].getValue();
+    if (Math.abs(sx) > 0.1) steerInput += sx;
+  }
   // ブレーキ（Zキー）
-  if (keyZ.isDown) {
+  const padBrake = gamepad && gamepad.buttons && gamepad.buttons.length > 1 ? gamepad.buttons[1].pressed : false;
+  if (keyZ.isDown || padBrake) {
     car.setVelocity(car.body.velocity.x * 0.98, car.body.velocity.y * 0.98);
   }
 
   // スロットルオフ時の自然減速をもっと弱く（アクセルもブレーキも押していない場合のみ）
-  if (!keyX.isDown && !keyZ.isDown) {
+  if (!(keyX.isDown || padAccel) && !(keyZ.isDown || padBrake)) {
     car.setVelocity(car.body.velocity.x * 0.995, car.body.velocity.y * 0.995);
   }
 }

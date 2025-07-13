@@ -530,7 +530,7 @@ function create() {
   car.setFixedRotation(false);
   car.body.render.sprite.xOffset = 0.5;
   car.body.render.sprite.yOffset = 0.5;
-  car.setFriction(0.125);
+  car.setFriction(0.08);  // 0.125から0.08に下げてスライドしやすく
   console.log('Car created:', car);
 }
 
@@ -544,7 +544,8 @@ function update() {
   const velocity = car.body.velocity;
   const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
   const currentAngularVelocity = car.body.angularVelocity;
-  let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
+  
+  // ステアリング入力の取得
   let steerInput = 0;
   if (cursors.left.isDown) steerInput -= 1;
   if (cursors.right.isDown) steerInput += 1;
@@ -552,18 +553,67 @@ function update() {
     const sx = gamepad.axes[0].getValue();
     if (Math.abs(sx) > 0.1) steerInput += sx;
   }
-  const maxSteerAngle = Math.PI / 3;
-  const targetDirection = car.rotation + Math.PI / 2 + steerInput * maxSteerAngle;
+  
+  // 車体の向きと進行方向の計算
   let heading = car.rotation + Math.PI / 2;
-  let angleDiff = Math.atan2(Math.sin(targetDirection - heading), Math.cos(targetDirection - heading));
   const forward = { x: Math.cos(heading), y: Math.sin(heading) };
   const vForward = velocity.x * forward.x + velocity.y * forward.y;
   const side = { x: -Math.sin(heading), y: Math.cos(heading) };
   const vSide = velocity.x * side.x + velocity.y * side.y;
+  
+  // 進行方向の角度を計算
+  const velocityAngle = Math.atan2(velocity.y, velocity.x);
+  
+  // 車体の向きと進行方向の差を計算
+  let directionDiff = Math.atan2(Math.sin(velocityAngle - heading), Math.cos(velocityAngle - heading));
+  
+  // スリップ角の計算
   let slipAngle = Math.atan2(vSide, vForward);
+  
+  // 直進安定性の計算：車体方向と進行方向が近く、ステアリング入力が少ない場合
+  const isGoingStraight = Math.abs(directionDiff) < 0.1 && Math.abs(steerInput) < 0.2 && speed > 1.0;
+  
+  // 基本的な角速度減衰
+  let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
+  
+  // 直進時の追加安定化
+  if (isGoingStraight) {
+    // 直進時は角速度をより強く減衰させる
+    angularDamping *= 0.92;
+    
+    // 車両が向いている方向に速度を収束させる
+    const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+    
+    if (currentSpeed > 0.1) {
+      // 車体の前進方向と現在の速度方向の内積（前進成分）
+      const forwardSpeed = velocity.x * forward.x + velocity.y * forward.y;
+      
+      // 車体方向への収束率（0.02 = 2%ずつ車体方向に収束）
+      const convergenceRate = 0.02;
+      
+      // 目標速度：車体が向いている方向に現在の速度の大きさで進む
+      const targetVelocity = {
+        x: forward.x * forwardSpeed,
+        y: forward.y * forwardSpeed
+      };
+      
+      // 現在の速度から目標速度への補間
+      car.setVelocity(
+        velocity.x + (targetVelocity.x - velocity.x) * convergenceRate,
+        velocity.y + (targetVelocity.y - velocity.y) * convergenceRate
+      );
+    }
+  }
+  
+  // ステアリング計算
+  const maxSteerAngle = Math.PI / 3;
+  const targetDirection = heading + steerInput * maxSteerAngle;
+  let angleDiff = Math.atan2(Math.sin(targetDirection - heading), Math.cos(targetDirection - heading));
+  
   let slipLoss = 1.0 - Math.min(Math.abs(slipAngle) / (Math.PI / 2), 1.0) * 0.7;
   let traction = Math.max(0, Math.min(1, (Math.abs(vForward) - 0.05) / 0.7));
   let steerRate = 0.00264 * traction * slipLoss;
+  
   car.setAngularVelocity(currentAngularVelocity * angularDamping + angleDiff * steerRate);
   if (keyX.isDown || padAccel) {
     const angle = car.rotation + Math.PI / 2;

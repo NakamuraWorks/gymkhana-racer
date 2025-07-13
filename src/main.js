@@ -35,6 +35,15 @@ const game = new Phaser.Game(config);
 let cursors, keyX, keyZ;
 let car;
 let gamepad;
+let controlLines = [];
+let raceStartTime = null;
+let currentLapTime = null;
+let bestLapTime = null;
+let checkpointsPassed = 0;
+let timeText;
+let bestTimeText;
+let lapHistoryTexts = [];
+let lapHistory = [];  // 過去のラップタイム履歴（最新5周分）
 
 function preload() {
   this.load.image('car', 'car.png');
@@ -130,7 +139,37 @@ function create() {
     }
     
     console.log(`Parsed ${points.length} points for path '${id}'`);
-    return points.length >= 3 ? points : null;
+    return points.length >= 2 ? points : null;  // ラインは2点以上でOK
+  }
+
+  // ライン専用のパース関数（2点のラインに対応）
+  function parseLineElement(id) {
+    const elem = svgDoc.getElementById(id);
+    if (!elem) {
+      console.warn(`Element with id '${id}' not found in SVG`);
+      return null;
+    }
+
+    let points = [];
+    
+    if (elem.tagName === 'line') {
+      // line要素の場合
+      const x1 = parseFloat(elem.getAttribute('x1')) || 0;
+      const y1 = parseFloat(elem.getAttribute('y1')) || 0;
+      const x2 = parseFloat(elem.getAttribute('x2')) || 0;
+      const y2 = parseFloat(elem.getAttribute('y2')) || 0;
+      
+      points = [
+        { x: x1 * adjustedScaleX + offsetX, y: y1 * adjustedScaleY + offsetY },
+        { x: x2 * adjustedScaleX + offsetX, y: y2 * adjustedScaleY + offsetY }
+      ];
+      console.log(`Parsed line element '${id}': (${x1},${y1}) to (${x2},${y2})`);
+    } else if (elem.tagName === 'path') {
+      // path要素の場合は既存のparsePath関数を使用
+      return parsePath(id);
+    }
+    
+    return points.length >= 2 ? points : null;
   }
 
   function isValidVertices(vertices) {
@@ -139,6 +178,79 @@ function create() {
 
   const innerPoints = parsePath('collisionInner');
   const outerPoints = parsePath('collisionOuter');
+  
+  // コントロールライン用のパースと設定
+  const startFinishLine = parseLineElement('startFinishLine');
+  const checkpoint1 = parseLineElement('checkpoint1');
+  const checkpoint2 = parseLineElement('checkpoint2');
+  
+  console.log('Parsed control lines:');
+  console.log('- startFinishLine:', startFinishLine);
+  console.log('- checkpoint1:', checkpoint1);
+  console.log('- checkpoint2:', checkpoint2);
+  
+  // コントロールライン情報を格納
+  controlLines = [];
+  if (startFinishLine && startFinishLine.length >= 2) {
+    controlLines.push({
+      id: 'startFinish',
+      points: startFinishLine,
+      type: 'startFinish',
+      passed: false
+    });
+  }
+  if (checkpoint1 && checkpoint1.length >= 2) {
+    controlLines.push({
+      id: 'checkpoint1',
+      points: checkpoint1,
+      type: 'checkpoint',
+      passed: false
+    });
+  }
+  if (checkpoint2 && checkpoint2.length >= 2) {
+    controlLines.push({
+      id: 'checkpoint2',
+      points: checkpoint2,
+      type: 'checkpoint',
+      passed: false
+    });
+  }
+  
+  console.log('Control lines loaded:', controlLines.length);
+  
+  // コントロールラインの視覚的表示
+  controlLines.forEach(line => {
+    console.log(`Processing control line: ${line.id}, points:`, line.points);
+    if (line.points.length >= 2) {
+      const p1 = line.points[0];
+      const p2 = line.points[line.points.length - 1];
+      const centerX = (p1.x + p2.x) / 2;
+      const centerY = (p1.y + p2.y) / 2;
+      const length = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+      const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      
+      console.log(`Creating control line ${line.id}: center(${centerX}, ${centerY}), length=${length}, angle=${angle}`);
+      
+      // コントロールライン用の矩形（物理的な当たり判定なし）
+      const lineRect = this.matter.add.rectangle(centerX, centerY, length, 20, {  // 高さを8から20に拡大
+        isStatic: true,
+        isSensor: true,  // センサーとして設定（物理的衝突なし）
+        angle: angle,
+        render: {
+          fillStyle: line.type === 'startFinish' ? '#00ff00' : '#ffff00',
+          strokeStyle: line.type === 'startFinish' ? '#00aa00' : '#aaaa00',
+          lineWidth: 2
+        }
+      });
+      
+      // ラインオブジェクトにIDを関連付け
+      lineRect.controlLineId = line.id;
+      
+      console.log(`Successfully created control line: ${line.id} at (${centerX}, ${centerY})`);
+    } else {
+      console.warn(`Control line ${line.id} has insufficient points:`, line.points);
+    }
+  });
 
   // コリジョン設定
   if (isValidVertices(innerPoints)) {
@@ -337,7 +449,146 @@ function create() {
   this.cameras.main.startFollow(car, true, 0.1, 0.1);
   this.cameras.main.setZoom(1.0);
   
+  // コントロールライン通過検出のイベント設定
+  this.matter.world.on('collisionstart', function (event) {
+    const pairs = event.pairs;
+    
+    for (let i = 0; i < pairs.length; i++) {
+      const bodyA = pairs[i].bodyA;
+      const bodyB = pairs[i].bodyB;
+      
+      // 車とコントロールラインの衝突を検出
+      if ((bodyA === car.body && bodyB.controlLineId) || (bodyB === car.body && bodyA.controlLineId)) {
+        const controlLineId = bodyA.controlLineId || bodyB.controlLineId;
+        handleControlLineCrossing(controlLineId);
+      }
+    }
+  });
+  
+  // タイム表示UI
+  timeText = this.add.text(20, 20, 'Time: --:--.--', {
+    fontSize: '24px',
+    fill: '#000000',
+    backgroundColor: '#ffffff',
+    padding: { x: 10, y: 5 }
+  });
+  timeText.setScrollFactor(0); // カメラに固定
+  
+  bestTimeText = this.add.text(20, 60, 'Best: --:--.--', {
+    fontSize: '20px',
+    fill: '#000000',
+    backgroundColor: '#ffffff',
+    padding: { x: 10, y: 5 }
+  });
+  bestTimeText.setScrollFactor(0); // カメラに固定
+  
+  // ラップ履歴表示UI（過去5周分）
+  lapHistoryTexts = [];
+  for (let i = 0; i < 5; i++) {
+    const lapText = this.add.text(20, 100 + (i * 25), `Lap ${i + 1}: --:--.--`, {
+      fontSize: '16px',
+      fill: '#666666',
+      backgroundColor: '#f0f0f0',
+      padding: { x: 8, y: 3 }
+    });
+    lapText.setScrollFactor(0); // カメラに固定
+    lapText.setVisible(false); // 初期は非表示
+    lapHistoryTexts.push(lapText);
+  }
+  
   console.log('Camera setup: following car with bounds', WORLD_WIDTH, 'x', WORLD_HEIGHT);
+}
+
+// コントロールライン通過処理
+function handleControlLineCrossing(controlLineId) {
+  const currentTime = Date.now();
+  
+  console.log(`Control line crossed: ${controlLineId}`);
+  
+  // 対応するコントロールラインを見つける
+  const line = controlLines.find(l => l.id === controlLineId);
+  if (!line) return;
+  
+  if (controlLineId === 'startFinish') {
+    if (raceStartTime === null) {
+      // レース開始
+      raceStartTime = currentTime;
+      checkpointsPassed = 0;
+      controlLines.forEach(l => l.passed = false);
+      line.passed = true;
+      console.log('Race started!');
+    } else if (checkpointsPassed === controlLines.filter(l => l.type === 'checkpoint').length) {
+      // ラップ完了（全チェックポイント通過済み）
+      currentLapTime = currentTime - raceStartTime;
+      
+      // ラップ履歴に追加（最新5周分を保持）
+      lapHistory.unshift(currentLapTime);
+      if (lapHistory.length > 5) {
+        lapHistory.pop();
+      }
+      
+      // ラップ履歴表示を更新
+      updateLapHistoryDisplay();
+      
+      if (bestLapTime === null || currentLapTime < bestLapTime) {
+        bestLapTime = currentLapTime;
+        console.log(`New best lap time: ${formatTime(bestLapTime)}`);
+      } else {
+        console.log(`Lap completed: ${formatTime(currentLapTime)} (Best: ${formatTime(bestLapTime)})`);
+      }
+      
+      // 新しいラップを開始
+      raceStartTime = currentTime;
+      checkpointsPassed = 0;
+      controlLines.forEach(l => l.passed = false);
+      line.passed = true;
+    }
+  } else if (line.type === 'checkpoint' && !line.passed && raceStartTime !== null) {
+    // チェックポイント通過
+    line.passed = true;
+    checkpointsPassed++;
+    console.log(`Checkpoint ${checkpointsPassed} passed!`);
+  }
+}
+
+// 時間をフォーマットする関数
+function formatTime(milliseconds) {
+  const minutes = Math.floor(milliseconds / 60000);
+  const seconds = Math.floor((milliseconds % 60000) / 1000);
+  const ms = Math.floor((milliseconds % 1000) / 10);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+}
+
+// ラップ履歴表示を更新する関数
+function updateLapHistoryDisplay() {
+  for (let i = 0; i < lapHistoryTexts.length; i++) {
+    if (i < lapHistory.length) {
+      const lapTime = lapHistory[i];
+      const isBest = lapTime === bestLapTime;
+      
+      lapHistoryTexts[i].setText(`Lap ${lapHistory.length - i}: ${formatTime(lapTime)}`);
+      lapHistoryTexts[i].setVisible(true);
+      
+      // ベストタイムは色を変更
+      if (isBest) {
+        lapHistoryTexts[i].setStyle({
+          fontSize: '16px',
+          fill: '#00aa00',
+          backgroundColor: '#e0ffe0',
+          padding: { x: 8, y: 3 }
+        });
+      } else {
+        lapHistoryTexts[i].setStyle({
+          fontSize: '16px',
+          fill: '#666666',
+          backgroundColor: '#f0f0f0',
+          padding: { x: 8, y: 3 }
+        });
+      }
+    } else {
+      lapHistoryTexts[i].setVisible(false);
+    }
+  }
 }
 
 function update() {
@@ -444,5 +695,15 @@ function update() {
   }
   if (!(keyX.isDown || padAccel) && !(keyZ.isDown || padBrake)) {
     car.setVelocity(car.body.velocity.x * 0.995, car.body.velocity.y * 0.995);
+  }
+  
+  // タイム表示の更新
+  if (raceStartTime !== null) {
+    const currentTime = Date.now() - raceStartTime;
+    timeText.setText(`Time: ${formatTime(currentTime)}`);
+  }
+  
+  if (bestLapTime !== null) {
+    bestTimeText.setText(`Best: ${formatTime(bestLapTime)}`);
   }
 }

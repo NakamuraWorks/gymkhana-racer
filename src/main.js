@@ -377,7 +377,7 @@ function update() {
   let slipAngle = Math.atan2(vSide, vForward);
   
   // 直進安定性の計算：車体方向と進行方向が近く、ステアリング入力が少ない場合
-  const isGoingStraight = Math.abs(directionDiff) < 0.1 && Math.abs(steerInput) < 0.2 && speed > 1.0;
+  const isGoingStraight = Math.abs(directionDiff) < 0.15 && Math.abs(steerInput) < 0.1 && speed > 1.5;
   
   // 基本的な角速度減衰
   let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
@@ -385,7 +385,7 @@ function update() {
   // 直進時の追加安定化
   if (isGoingStraight) {
     // 直進時は角速度をより強く減衰させる
-    angularDamping *= 0.92;
+    angularDamping *= 0.85;  // 0.92から0.85に強化
     
     // 車両が向いている方向に速度を収束させる
     const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
@@ -394,8 +394,10 @@ function update() {
       // 車体の前進方向と現在の速度方向の内積（前進成分）
       const forwardSpeed = velocity.x * forward.x + velocity.y * forward.y;
       
-      // 車体方向への収束率（0.02 = 2%ずつ車体方向に収束）
-      const convergenceRate = 0.02;
+      // 車体方向への収束率を速度に応じて調整（高速時により強く）
+      const baseConvergenceRate = 0.02;
+      const speedFactor = Math.min(speed / 10, 1.5);  // 速度に応じた係数
+      const convergenceRate = baseConvergenceRate * (1 + speedFactor);
       
       // 目標速度：車体が向いている方向に現在の速度の大きさで進む
       const targetVelocity = {

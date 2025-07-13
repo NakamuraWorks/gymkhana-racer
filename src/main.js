@@ -9,11 +9,7 @@ const config = {
     default: 'matter',
     matter: {
       gravity: { y: 0 },
-      debug: {
-        showBody: true,
-        showStaticBody: true,
-        showVelocity: true
-      }
+      debug: false  // デバッグ表示を無効化してパフォーマンス向上
     }
   },
   scale: {

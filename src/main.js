@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 
 const config = {
   type: Phaser.AUTO,
-  width: window.innerWidth,
-  height: window.innerHeight,
+  width: 1280,  // 固定解像度
+  height: 720,  // 固定解像度
   backgroundColor: '#ffffff',
   physics: {
     default: 'matter',
@@ -17,7 +17,7 @@ const config = {
     }
   },
   scale: {
-    mode: Phaser.Scale.RESIZE,
+    mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   input: {
@@ -43,10 +43,17 @@ function preload() {
 }
 
 function create() {
-  // 背景画像
+  // 4Kマップサイズの設定
+  const WORLD_WIDTH = 3840;
+  const WORLD_HEIGHT = 2160;
+  
+  // ワールド境界の設定
+  this.matter.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  
+  // 背景画像を4Kサイズで配置
   const bg = this.add.image(0, 0, 'bg');
   bg.setOrigin(0, 0);
-  bg.setDisplaySize(window.innerWidth, window.innerHeight);
+  bg.setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
 
   // SVGコリジョンデータの読み込み
   const svgText = this.cache.text.get('collisionSVG');
@@ -66,137 +73,27 @@ function create() {
   const vbWidth = vb[2] || 1920;
   const vbHeight = vb[3] || 1080;
   
-  // アスペクト比を維持するスケーリング
-  const scaleX = window.innerWidth / vbWidth;
-  const scaleY = window.innerHeight / vbHeight;
-  const baseScale = Math.min(scaleX, scaleY); // 基本スケール
+  // 4Kサイズへのスケーリング
+  const scaleX = WORLD_WIDTH / vbWidth;
+  const scaleY = WORLD_HEIGHT / vbHeight;
+  const baseScale = Math.min(scaleX, scaleY);
   
-  // 横に5%長くするため、X軸のスケールを調整
-  const finalScaleX = baseScale * 1.05;
-  const finalScaleY = baseScale;
+  // 最終スケール（4Kマップ用）
+  const finalScaleX = scaleX;
+  const finalScaleY = scaleY;
   
-  console.log('SVG scale factors:', { scaleX, scaleY, baseScale, finalScaleX, finalScaleY });
+  console.log('4K Map scale factors:', { scaleX, scaleY, baseScale, finalScaleX, finalScaleY });
+  console.log('World size:', { width: WORLD_WIDTH, height: WORLD_HEIGHT });
 
-  // square要素を基準とした配置調整
-  function adjustScaleBasedOnSquare() {
-    const squareElem = svgDoc.getElementById('square');
-    if (squareElem) {
-      console.log('Square element found for reference positioning');
-      
-      let squareX = 0, squareY = 0, squareWidth = 0, squareHeight = 0;
-      
-      if (squareElem.tagName === 'rect') {
-        squareX = parseFloat(squareElem.getAttribute('x')) || 0;
-        squareY = parseFloat(squareElem.getAttribute('y')) || 0;
-        squareWidth = parseFloat(squareElem.getAttribute('width')) || 0;
-        squareHeight = parseFloat(squareElem.getAttribute('height')) || 0;
-      } else if (squareElem.tagName === 'circle') {
-        const cx = parseFloat(squareElem.getAttribute('cx')) || 0;
-        const cy = parseFloat(squareElem.getAttribute('cy')) || 0;
-        const r = parseFloat(squareElem.getAttribute('r')) || 0;
-        squareX = cx - r;
-        squareY = cy - r;
-        squareWidth = squareHeight = r * 2;
-      }
-      
-      console.log('Square bounds in SVG:', { x: squareX, y: squareY, width: squareWidth, height: squareHeight });
-      
-      // square要素が画面全体を表している場合の調整
-      if (squareWidth > 0 && squareHeight > 0) {
-        const squareAspectRatio = squareWidth / squareHeight;
-        const screenAspectRatio = window.innerWidth / window.innerHeight;
-        
-        console.log('Aspect ratios - Square:', squareAspectRatio, 'Screen:', screenAspectRatio);
-        
-        // square要素のスケールを計算
-        const squareScaleX = window.innerWidth / squareWidth;
-        const squareScaleY = window.innerHeight / squareHeight;
-        
-        console.log('Square-based scales:', { squareScaleX, squareScaleY });
-        
-        return {
-          offsetX: -squareX * squareScaleX,
-          offsetY: -squareY * squareScaleY,
-          scaleX: squareScaleX,
-          scaleY: squareScaleY,
-          found: true
-        };
-      }
-    }
-    
-    return { found: false };
-  }
-  
-  const squareAdjustment = adjustScaleBasedOnSquare();
-  
-  // square要素が見つかった場合は、それを基準にスケールを調整
+  // square要素を基準とした配置調整（4K用に簡略化）
   let adjustedScaleX = finalScaleX;
   let adjustedScaleY = finalScaleY;
   let offsetX = 0;
   let offsetY = 0;
   
-  if (squareAdjustment.found) {
-    adjustedScaleX = squareAdjustment.scaleX;
-    adjustedScaleY = squareAdjustment.scaleY;
-    offsetX = squareAdjustment.offsetX;
-    offsetY = squareAdjustment.offsetY;
-    console.log('Using square-based positioning:', { adjustedScaleX, adjustedScaleY, offsetX, offsetY });
-  } else {
-    console.log('No square element found, using original scaling');
-  }
+  console.log('Using 4K scaling:', { adjustedScaleX, adjustedScaleY, offsetX, offsetY });
 
-  // 画面四隅の参照用要素を検出・表示する関数
-  function checkCornerReferences() {
-    const cornerIds = ['corner-tl', 'corner-tr', 'corner-bl', 'corner-br', 'topLeft', 'topRight', 'bottomLeft', 'bottomRight', 'square'];
-    const corners = [];
-    
-    cornerIds.forEach(id => {
-      const elem = svgDoc.getElementById(id);
-      if (elem) {
-        let x = 0, y = 0;
-        
-        if (elem.tagName === 'circle' || elem.tagName === 'ellipse') {
-          x = parseFloat(elem.getAttribute('cx')) || 0;
-          y = parseFloat(elem.getAttribute('cy')) || 0;
-        } else if (elem.tagName === 'rect') {
-          x = parseFloat(elem.getAttribute('x')) || 0;
-          y = parseFloat(elem.getAttribute('y')) || 0;
-        } else if (elem.tagName === 'path') {
-          const d = elem.getAttribute('d');
-          const m = /M\s*([\d\.\-]+)[\s,]+([\d\.\-]+)/.exec(d);
-          if (m) {
-            x = parseFloat(m[1]);
-            y = parseFloat(m[2]);
-          }
-        }
-        
-        corners.push({
-          id: id,
-          originalX: x,
-          originalY: y,
-          scaledX: x * adjustedScaleX + offsetX,
-          scaledY: y * adjustedScaleY + offsetY
-        });
-        console.log(`Corner reference found: ${id} at (${x}, ${y}) -> scaled (${x * adjustedScaleX + offsetX}, ${y * adjustedScaleY + offsetY})`);
-      }
-    });
-    
-    return corners;
-  }
-  
-  const cornerReferences = checkCornerReferences();
-
-  // SVGのViewBox境界を表示用に計算
-  const svgBounds = {
-    topLeft: { x: vb[0] * adjustedScaleX, y: vb[1] * adjustedScaleY },
-    topRight: { x: (vb[0] + vbWidth) * adjustedScaleX, y: vb[1] * adjustedScaleY },
-    bottomLeft: { x: vb[0] * adjustedScaleX, y: (vb[1] + vbHeight) * adjustedScaleY },
-    bottomRight: { x: (vb[0] + vbWidth) * adjustedScaleX, y: (vb[1] + vbHeight) * adjustedScaleY }
-  };
-  
-  console.log('SVG ViewBox bounds (scaled):', svgBounds);
-  console.log('Window dimensions:', { width: window.innerWidth, height: window.innerHeight });
-
+  // SVGパース関数
   function parsePath(id) {
     const path = svgDoc.getElementById(id);
     if (!path) {
@@ -246,7 +143,6 @@ function create() {
   // コリジョン設定
   if (isValidVertices(innerPoints)) {
     // 内側の壁（コースの内壁）
-    // 複雑な形状の場合は線分ごとに分割して作成
     for (let i = 0; i < innerPoints.length - 1; i++) {
       const p1 = innerPoints[i];
       const p2 = innerPoints[i + 1];
@@ -255,7 +151,6 @@ function create() {
       const length = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
       const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
       
-      // 幅と高さを正しく設定（長さ, 厚さの順）
       this.matter.add.rectangle(centerX, centerY, length, 4, {
         isStatic: true,
         angle: angle,
@@ -296,7 +191,6 @@ function create() {
       const length = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
       const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
       
-      // 幅と高さを正しく設定（長さ, 厚さの順）
       this.matter.add.rectangle(centerX, centerY, length, 4, {
         isStatic: true,
         angle: angle,
@@ -327,100 +221,6 @@ function create() {
     console.log('Outer collision created with', outerPoints.length, 'segments');
   }
 
-  // ポリゴン確認用の線描画
-  const graphics = this.add.graphics();
-  graphics.lineStyle(2, 0xff0000, 1); // 赤色、太さ2
-  if (isValidVertices(innerPoints)) {
-    graphics.beginPath();
-    graphics.moveTo(innerPoints[0].x, innerPoints[0].y);
-    for (let i = 1; i < innerPoints.length; i++) {
-      graphics.lineTo(innerPoints[i].x, innerPoints[i].y);
-    }
-    graphics.closePath();
-    graphics.strokePath();
-  }
-  graphics.lineStyle(2, 0x0000ff, 1); // 青色、太さ2
-  if (isValidVertices(outerPoints)) {
-    graphics.beginPath();
-    graphics.moveTo(outerPoints[0].x, outerPoints[0].y);
-    for (let i = 1; i < outerPoints.length; i++) {
-      graphics.lineTo(outerPoints[i].x, outerPoints[i].y);
-    }
-    graphics.closePath();
-    graphics.strokePath();
-  }
-
-  // 画面四隅とViewBox境界の可視化
-  const boundsGraphics = this.add.graphics();
-  
-  // SVGのViewBox境界を緑色で表示
-  boundsGraphics.lineStyle(3, 0x00ff00, 1);
-  boundsGraphics.strokeRect(
-    svgBounds.topLeft.x, 
-    svgBounds.topLeft.y, 
-    svgBounds.topRight.x - svgBounds.topLeft.x, 
-    svgBounds.bottomLeft.y - svgBounds.topLeft.y
-  );
-  
-  // 現在の画面境界を黄色で表示
-  boundsGraphics.lineStyle(2, 0xffff00, 1);
-  boundsGraphics.strokeRect(0, 0, window.innerWidth, window.innerHeight);
-  
-  // 検出された四隅参照点をマゼンタの円で表示
-  cornerReferences.forEach(corner => {
-    boundsGraphics.fillStyle(0xff00ff);
-    boundsGraphics.fillCircle(corner.scaledX, corner.scaledY, 8);
-    
-    // ラベルを追加
-    const text = this.add.text(corner.scaledX + 10, corner.scaledY - 10, corner.id, {
-      fontSize: '12px',
-      color: '#ff00ff',
-      backgroundColor: '#000000',
-      padding: { x: 2, y: 2 }
-    });
-  });
-  
-  // square要素が見つかった場合は特別にハイライト
-  if (squareAdjustment.found) {
-    const squareElem = svgDoc.getElementById('square');
-    if (squareElem) {
-      let squareX = 0, squareY = 0, squareWidth = 0, squareHeight = 0;
-      
-      if (squareElem.tagName === 'rect') {
-        squareX = parseFloat(squareElem.getAttribute('x')) || 0;
-        squareY = parseFloat(squareElem.getAttribute('y')) || 0;
-        squareWidth = parseFloat(squareElem.getAttribute('width')) || 0;
-        squareHeight = parseFloat(squareElem.getAttribute('height')) || 0;
-      } else if (squareElem.tagName === 'circle') {
-        const cx = parseFloat(squareElem.getAttribute('cx')) || 0;
-        const cy = parseFloat(squareElem.getAttribute('cy')) || 0;
-        const r = parseFloat(squareElem.getAttribute('r')) || 0;
-        squareX = cx - r;
-        squareY = cy - r;
-        squareWidth = squareHeight = r * 2;
-      }
-      
-      // square要素の範囲を橙色で表示
-      boundsGraphics.lineStyle(3, 0xff8800, 1);
-      boundsGraphics.strokeRect(
-        squareX * adjustedScaleX + offsetX,
-        squareY * adjustedScaleY + offsetY,
-        squareWidth * adjustedScaleX,
-        squareHeight * adjustedScaleY
-      );
-      
-      // square要素のラベル
-      this.add.text(10, 10, 'SQUARE-BASED POSITIONING ACTIVE', {
-        fontSize: '14px',
-        color: '#ff8800',
-        backgroundColor: '#000000',
-        padding: { x: 4, y: 4 }
-      });
-    }
-  }
-  
-  console.log('Visualization added: Green = SVG ViewBox, Yellow = Screen bounds, Magenta = Corner references, Orange = Square element');
-
   // 入力設定
   cursors = this.input.keyboard.createCursorKeys();
   keyX = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
@@ -432,9 +232,9 @@ function create() {
     this.input.gamepad.once('connected', pad => { gamepad = pad; });
   }
 
-  // SVG内のspawn位置の取得（複数の可能な名前を試す）
-  let carX = window.innerWidth / 2;
-  let carY = window.innerHeight / 2;
+  // 4Kマップ上のspawn位置の取得
+  let carX = WORLD_WIDTH / 2;
+  let carY = WORLD_HEIGHT / 2;
   
   // 複数の可能なspawn要素名を試す
   const possibleSpawnIds = ['spown', 'spawn', 'start', 'startPoint', 'car', 'vehicle'];
@@ -503,9 +303,8 @@ function create() {
       }
     }
     
-    // 境界チェックを削除して、実際の座標を使用
-    console.log('Final spawn position (before bounds check):', carX, carY);
-    console.log('Window dimensions:', window.innerWidth, window.innerHeight);
+    console.log('Final spawn position:', carX, carY);
+    console.log('World dimensions:', WORLD_WIDTH, WORLD_HEIGHT);
     
   } else {
     console.warn('No spawn element found with any of these IDs:', possibleSpawnIds);
@@ -530,8 +329,15 @@ function create() {
   car.setFixedRotation(false);
   car.body.render.sprite.xOffset = 0.5;
   car.body.render.sprite.yOffset = 0.5;
-  car.setFriction(0.08);  // 0.125から0.08に下げてスライドしやすく
+  car.setFriction(0.05);  // 0.08から0.05に下げてさらにスライドしやすく
   console.log('Car created:', car);
+  
+  // カメラ設定：車を追従
+  this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  this.cameras.main.startFollow(car, true, 0.1, 0.1);
+  this.cameras.main.setZoom(1.0);
+  
+  console.log('Camera setup: following car with bounds', WORLD_WIDTH, 'x', WORLD_HEIGHT);
 }
 
 function update() {
@@ -540,7 +346,7 @@ function update() {
   }
   const padAccel = gamepad && gamepad.buttons && gamepad.buttons.length > 0 ? gamepad.buttons[0].pressed : false;
   const rotationSpeed = 0.002;
-  const forceMagnitude = 0.012;
+  const forceMagnitude = 0.018;  // 0.012から0.018に増加（1.5倍）
   const velocity = car.body.velocity;
   const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
   const currentAngularVelocity = car.body.angularVelocity;

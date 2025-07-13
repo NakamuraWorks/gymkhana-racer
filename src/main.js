@@ -322,7 +322,7 @@ function create() {
   console.log('Creating car at position:', carX, carY);
   car = this.matter.add.image(carX, carY, 'car');
   car.setOrigin(0.5, 0.5);
-  car.setDisplaySize(30, 42);
+  car.setDisplaySize(36, 48);
   car.setRotation(-Math.PI / 2);
   car.setFrictionAir(0.025);
   car.setMass(30);
@@ -427,9 +427,18 @@ function update() {
     const forceY = Math.sin(angle) * forceMagnitude;
     car.applyForce({ x: forceX, y: forceY });
   }
-  const padBrake = gamepad && gamepad.buttons && gamepad.buttons.length > 1 ? gamepad.buttons[1].pressed : false;
+  const padBrake = gamepad && gamepad.buttons && gamepad.buttons.length > 2 ? gamepad.buttons[2].pressed : false;
   if (keyZ.isDown || padBrake) {
-    car.setVelocity(car.body.velocity.x * 0.98, car.body.velocity.y * 0.98);
+    // 現在の速度が低い場合（停車時）はバック
+    if (speed < 1.0) {
+      const angle = car.rotation + Math.PI / 2;
+      const backForceX = -Math.cos(angle) * forceMagnitude * 0.3;  // 通常の30%の力でバック
+      const backForceY = -Math.sin(angle) * forceMagnitude * 0.3;
+      car.applyForce({ x: backForceX, y: backForceY });
+    } else {
+      // 通常時はブレーキ
+      car.setVelocity(car.body.velocity.x * 0.98, car.body.velocity.y * 0.98);
+    }
   }
   if (!(keyX.isDown || padAccel) && !(keyZ.isDown || padBrake)) {
     car.setVelocity(car.body.velocity.x * 0.995, car.body.velocity.y * 0.995);

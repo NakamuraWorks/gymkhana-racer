@@ -627,13 +627,13 @@ function update() {
 
   // 基本的な角速度減衰
   let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
-  // 直進時の追加安定化
+  // 直進時の追加安定化（さらに強化）
   if (isGoingStraight) {
-    angularDamping *= 0.85;
+    angularDamping *= 0.7; // 0.85→0.7で減衰を強化
     const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
     if (currentSpeed > 0.1) {
       const forwardSpeed = velocity.x * forward.x + velocity.y * forward.y;
-      const baseConvergenceRate = 0.02;
+      const baseConvergenceRate = 0.03; // 0.02→0.03で収束力を強化
       const speedFactor = Math.min(speed / 10, 1.5);
       const convergenceRate = baseConvergenceRate * (1 + speedFactor);
       const targetVelocity = {

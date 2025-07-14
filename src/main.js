@@ -632,18 +632,27 @@ function update() {
     angularDamping *= 0.7; // 0.85→0.7で減衰を強化
     const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
     if (currentSpeed > 0.1) {
-      const forwardSpeed = velocity.x * forward.x + velocity.y * forward.y;
-      const baseConvergenceRate = 0.03; // 0.02→0.03で収束力を強化
-      const speedFactor = Math.min(speed / 10, 1.5);
-      const convergenceRate = baseConvergenceRate * (1 + speedFactor);
-      const targetVelocity = {
-        x: forward.x * forwardSpeed,
-        y: forward.y * forwardSpeed
-      };
-      car.setVelocity(
-        velocity.x + (targetVelocity.x - velocity.x) * convergenceRate,
-        velocity.y + (targetVelocity.y - velocity.y) * convergenceRate
-      );
+      // 完全収束処理：車体の向きと進行方向が十分近い場合はvelocityベクトルをheading方向に揃える
+      if (Math.abs(directionDiff) < 0.05) {
+        // heading方向に完全に揃える
+        const newVx = Math.cos(heading) * currentSpeed;
+        const newVy = Math.sin(heading) * currentSpeed;
+        car.setVelocity(newVx, newVy);
+      } else {
+        // 通常の収束処理
+        const forwardSpeed = velocity.x * forward.x + velocity.y * forward.y;
+        const baseConvergenceRate = 0.03; // 0.02→0.03で収束力を強化
+        const speedFactor = Math.min(speed / 10, 1.5);
+        const convergenceRate = baseConvergenceRate * (1 + speedFactor);
+        const targetVelocity = {
+          x: forward.x * forwardSpeed,
+          y: forward.y * forwardSpeed
+        };
+        car.setVelocity(
+          velocity.x + (targetVelocity.x - velocity.x) * convergenceRate,
+          velocity.y + (targetVelocity.y - velocity.y) * convergenceRate
+        );
+      }
     }
   }
 

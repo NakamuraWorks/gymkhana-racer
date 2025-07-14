@@ -650,8 +650,8 @@ function update() {
   // --- スモーク発生・管理 ---
   const slipThreshold = 0.25; // スリップ角
   let isSliding = Math.abs(slipAngle) > slipThreshold && speed > 2.0;
-  // 出現頻度は60msごと
-  const smokeInterval = 60; // ms
+  // 出現頻度を半分に（120msごと）
+  const smokeInterval = 120; // ms
   const now = Date.now();
   const startSmokeSize = 60; // px（出現時）
   const maxSmokeSize = 120; // px（最大）

@@ -40,10 +40,14 @@ let timeText;
 let bestTimeText;
 let lapHistoryTexts = [];
 let lapHistory = [];  // 過去のラップタイム履歴（最新5周分）
+// スモーク管理用
+let smokeSprites = [];
+let lastSmokeTime = 0;
 
 function preload() {
   this.load.image('car', 'car.png');
   this.load.image('bg', 'background.png');
+  this.load.image('smoke', 'smoke.png'); // 追加
   this.load.text('collisionSVG', 'collision.svg');
 }
 
@@ -67,11 +71,11 @@ function create() {
   const svgRoot = svgDoc.documentElement;
   
   // SVG内の全要素をデバッグ出力
-  console.log('SVG elements with IDs:');
-  const allElements = svgDoc.querySelectorAll('[id]');
-  allElements.forEach(elem => {
-    console.log(`- ${elem.tagName} with id: ${elem.id}`);
-  });
+  // console.log('SVG elements with IDs:');
+  // const allElements = svgDoc.querySelectorAll('[id]');
+  // allElements.forEach(elem => {
+  //   console.log(`- ${elem.tagName} with id: ${elem.id}`);
+  // });
   
   let viewBox = svgRoot.getAttribute('viewBox');
   let vb = viewBox ? viewBox.split(/\s+/).map(Number) : [0, 0, 1920, 1080];
@@ -87,8 +91,8 @@ function create() {
   const finalScaleX = scaleX;
   const finalScaleY = scaleY;
   
-  console.log('4K Map scale factors:', { scaleX, scaleY, baseScale, finalScaleX, finalScaleY });
-  console.log('World size:', { width: WORLD_WIDTH, height: WORLD_HEIGHT });
+  // console.log('4K Map scale factors:', { scaleX, scaleY, baseScale, finalScaleX, finalScaleY });
+  // console.log('World size:', { width: WORLD_WIDTH, height: WORLD_HEIGHT });
 
   // square要素を基準とした配置調整（4K用に簡略化）
   let adjustedScaleX = finalScaleX;
@@ -96,7 +100,7 @@ function create() {
   let offsetX = 0;
   let offsetY = 0;
   
-  console.log('Using 4K scaling:', { adjustedScaleX, adjustedScaleY, offsetX, offsetY });
+  // console.log('Using 4K scaling:', { adjustedScaleX, adjustedScaleY, offsetX, offsetY });
 
   // SVGパース関数
   function parsePath(id) {
@@ -134,7 +138,7 @@ function create() {
       }
     }
     
-    console.log(`Parsed ${points.length} points for path '${id}'`);
+    // console.log(`Parsed ${points.length} points for path '${id}'`);
     return points.length >= 2 ? points : null;  // ラインは2点以上でOK
   }
 
@@ -159,7 +163,7 @@ function create() {
         { x: x1 * adjustedScaleX + offsetX, y: y1 * adjustedScaleY + offsetY },
         { x: x2 * adjustedScaleX + offsetX, y: y2 * adjustedScaleY + offsetY }
       ];
-      console.log(`Parsed line element '${id}': (${x1},${y1}) to (${x2},${y2})`);
+      // console.log(`Parsed line element '${id}': (${x1},${y1}) to (${x2},${y2})`);
     } else if (elem.tagName === 'path') {
       // path要素の場合は既存のparsePath関数を使用
       return parsePath(id);
@@ -180,10 +184,10 @@ function create() {
   const checkpoint1 = parseLineElement('checkpoint1');
   const checkpoint2 = parseLineElement('checkpoint2');
   
-  console.log('Parsed control lines:');
-  console.log('- startFinishLine:', startFinishLine);
-  console.log('- checkpoint1:', checkpoint1);
-  console.log('- checkpoint2:', checkpoint2);
+  // console.log('Parsed control lines:');
+  // console.log('- startFinishLine:', startFinishLine);
+  // console.log('- checkpoint1:', checkpoint1);
+  // console.log('- checkpoint2:', checkpoint2);
   
   // コントロールライン情報を格納
   controlLines = [];
@@ -212,11 +216,11 @@ function create() {
     });
   }
   
-  console.log('Control lines loaded:', controlLines.length);
+  // console.log('Control lines loaded:', controlLines.length);
   
   // コントロールラインの視覚的表示
   controlLines.forEach(line => {
-    console.log(`Processing control line: ${line.id}, points:`, line.points);
+    // console.log(`Processing control line: ${line.id}, points:`, line.points);
     if (line.points.length >= 2) {
       const p1 = line.points[0];
       const p2 = line.points[line.points.length - 1];
@@ -225,7 +229,7 @@ function create() {
       const length = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
       const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
       
-      console.log(`Creating control line ${line.id}: center(${centerX}, ${centerY}), length=${length}, angle=${angle}`);
+      // console.log(`Creating control line ${line.id}: center(${centerX}, ${centerY}), length=${length}, angle=${angle}`);
       
       // コントロールライン用の矩形（物理的な当たり判定なし）
       const lineRect = this.matter.add.rectangle(centerX, centerY, length, 20, {  // 高さを8から20に拡大
@@ -242,9 +246,9 @@ function create() {
       // ラインオブジェクトにIDを関連付け
       lineRect.controlLineId = line.id;
       
-      console.log(`Successfully created control line: ${line.id} at (${centerX}, ${centerY})`);
+      // console.log(`Successfully created control line: ${line.id} at (${centerX}, ${centerY})`);
     } else {
-      console.warn(`Control line ${line.id} has insufficient points:`, line.points);
+      // console.warn(`Control line ${line.id} has insufficient points:`, line.points);
     }
   });
 
@@ -286,7 +290,7 @@ function create() {
         lineWidth: 2
       }
     });
-    console.log('Inner collision created with', innerPoints.length, 'segments');
+    // console.log('Inner collision created with', innerPoints.length, 'segments');
   }
   
   if (isValidVertices(outerPoints)) {
@@ -326,7 +330,7 @@ function create() {
         lineWidth: 2
       }
     });
-    console.log('Outer collision created with', outerPoints.length, 'segments');
+    // console.log('Outer collision created with', outerPoints.length, 'segments');
   }
 
   // 入力設定
@@ -357,25 +361,25 @@ function create() {
     }
   }
   
-  console.log('Checking spawn element with ID:', foundSpawnId);
-  console.log('Spawn element:', spawnElem);
+  // console.log('Checking spawn element with ID:', foundSpawnId);
+  // console.log('Spawn element:', spawnElem);
   
   if (spawnElem) {
-    console.log('Spawn element found, tagName:', spawnElem.tagName);
-    console.log('All attributes:', Array.from(spawnElem.attributes).map(attr => `${attr.name}="${attr.value}"`));
+    // console.log('Spawn element found, tagName:', spawnElem.tagName);
+    // console.log('All attributes:', Array.from(spawnElem.attributes).map(attr => `${attr.name}="${attr.value}"`));
     
     if (spawnElem.tagName === 'circle') {
       const cx = parseFloat(spawnElem.getAttribute('cx')) || 0;
       const cy = parseFloat(spawnElem.getAttribute('cy')) || 0;
       carX = cx * adjustedScaleX + offsetX;
       carY = cy * adjustedScaleY + offsetY;
-      console.log('Spawn from circle - original:', cx, cy, 'scaled:', carX, carY);
+      // console.log('Spawn from circle - original:', cx, cy, 'scaled:', carX, carY);
     } else if (spawnElem.tagName === 'ellipse') {
       const cx = parseFloat(spawnElem.getAttribute('cx')) || 0;
       const cy = parseFloat(spawnElem.getAttribute('cy')) || 0;
       carX = cx * adjustedScaleX + offsetX;
       carY = cy * adjustedScaleY + offsetY;
-      console.log('Spawn from ellipse - original:', cx, cy, 'scaled:', carX, carY);
+      // console.log('Spawn from ellipse - original:', cx, cy, 'scaled:', carX, carY);
     } else if (spawnElem.tagName === 'rect') {
       const x = parseFloat(spawnElem.getAttribute('x')) || 0;
       const y = parseFloat(spawnElem.getAttribute('y')) || 0;
@@ -383,22 +387,22 @@ function create() {
       const height = parseFloat(spawnElem.getAttribute('height')) || 0;
       carX = (x + width/2) * adjustedScaleX + offsetX;
       carY = (y + height/2) * adjustedScaleY + offsetY;
-      console.log('Spawn from rect - original:', x, y, 'center:', x + width/2, y + height/2, 'scaled:', carX, carY);
+      // console.log('Spawn from rect - original:', x, y, 'center:', x + width/2, y + height/2, 'scaled:', carX, carY);
     } else if (spawnElem.tagName === 'path') {
       const d = spawnElem.getAttribute('d');
-      console.log('Path d attribute:', d);
+      // console.log('Path d attribute:', d);
       const m = /M\s*([\d\.\-]+)[\s,]+([\d\.\-]+)/.exec(d);
       if (m) {
         const origX = parseFloat(m[1]);
         const origY = parseFloat(m[2]);
         carX = origX * adjustedScaleX + offsetX;
         carY = origY * adjustedScaleY + offsetY;
-        console.log('Spawn from path - original:', origX, origY, 'scaled:', carX, carY);
+        // console.log('Spawn from path - original:', origX, origY, 'scaled:', carX, carY);
       }
     } else if (spawnElem.tagName === 'g') {
       // グループ要素の場合、transform属性を確認
       const transform = spawnElem.getAttribute('transform');
-      console.log('Group transform:', transform);
+      // console.log('Group transform:', transform);
       if (transform) {
         const translateMatch = /translate\(([\d\.\-]+)[\s,]*([\d\.\-]+)\)/.exec(transform);
         if (translateMatch) {
@@ -406,28 +410,28 @@ function create() {
           const origY = parseFloat(translateMatch[2]);
           carX = origX * adjustedScaleX + offsetX;
           carY = origY * adjustedScaleY + offsetY;
-          console.log('Spawn from group transform - original:', origX, origY, 'scaled:', carX, carY);
+          // console.log('Spawn from group transform - original:', origX, origY, 'scaled:', carX, carY);
         }
       }
     }
     
-    console.log('Final spawn position:', carX, carY);
-    console.log('World dimensions:', WORLD_WIDTH, WORLD_HEIGHT);
+    // console.log('Final spawn position:', carX, carY);
+    // console.log('World dimensions:', WORLD_WIDTH, WORLD_HEIGHT);
     
   } else {
-    console.warn('No spawn element found with any of these IDs:', possibleSpawnIds);
+    // console.warn('No spawn element found with any of these IDs:', possibleSpawnIds);
     if (isValidVertices(innerPoints)) {
       const sum = innerPoints.reduce((acc, pt) => ({ x: acc.x + pt.x, y: acc.y + pt.y }), { x: 0, y: 0 });
       carX = sum.x / innerPoints.length;
       carY = sum.y / innerPoints.length;
-      console.log('Fallback: spawn from inner points center:', carX, carY);
+      // console.log('Fallback: spawn from inner points center:', carX, carY);
     }
   }
   
-  console.log('Final car position:', carX, carY);
+  // console.log('Final car position:', carX, carY);
 
   // 車オブジェクトの作成
-  console.log('Creating car at position:', carX, carY);
+  // console.log('Creating car at position:', carX, carY);
   car = this.matter.add.image(carX, carY, 'car');
   car.setOrigin(0.5, 0.5);
   car.setDisplaySize(36, 48);
@@ -438,7 +442,7 @@ function create() {
   car.body.render.sprite.xOffset = 0.5;
   car.body.render.sprite.yOffset = 0.5;
   car.setFriction(0.05);  // 0.08から0.05に下げてさらにスライドしやすく
-  console.log('Car created:', car);
+  // console.log('Car created:', car);
   
   // カメラ設定：車を追従
   this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -492,14 +496,14 @@ function create() {
     lapHistoryTexts.push(lapText);
   }
   
-  console.log('Camera setup: following car with bounds', WORLD_WIDTH, 'x', WORLD_HEIGHT);
+  // console.log('Camera setup: following car with bounds', WORLD_WIDTH, 'x', WORLD_HEIGHT);
 }
 
 // コントロールライン通過処理
 function handleControlLineCrossing(controlLineId) {
   const currentTime = Date.now();
   
-  console.log(`Control line crossed: ${controlLineId}`);
+  // console.log(`Control line crossed: ${controlLineId}`);
   
   // 対応するコントロールラインを見つける
   const line = controlLines.find(l => l.id === controlLineId);
@@ -512,7 +516,7 @@ function handleControlLineCrossing(controlLineId) {
       checkpointsPassed = 0;
       controlLines.forEach(l => l.passed = false);
       line.passed = true;
-      console.log('Race started!');
+      // console.log('Race started!');
     } else if (checkpointsPassed === controlLines.filter(l => l.type === 'checkpoint').length) {
       // ラップ完了（全チェックポイント通過済み）
       currentLapTime = currentTime - raceStartTime;
@@ -528,9 +532,9 @@ function handleControlLineCrossing(controlLineId) {
       
       if (bestLapTime === null || currentLapTime < bestLapTime) {
         bestLapTime = currentLapTime;
-        console.log(`New best lap time: ${formatTime(bestLapTime)}`);
+        // console.log(`New best lap time: ${formatTime(bestLapTime)}`);
       } else {
-        console.log(`Lap completed: ${formatTime(currentLapTime)} (Best: ${formatTime(bestLapTime)})`);
+        // console.log(`Lap completed: ${formatTime(currentLapTime)} (Best: ${formatTime(bestLapTime)})`);
       }
       
       // 新しいラップを開始
@@ -543,7 +547,7 @@ function handleControlLineCrossing(controlLineId) {
     // チェックポイント通過
     line.passed = true;
     checkpointsPassed++;
-    console.log(`Checkpoint ${checkpointsPassed} passed!`);
+    // console.log(`Checkpoint ${checkpointsPassed} passed!`);
   }
 }
 
@@ -597,7 +601,6 @@ function update() {
   const velocity = car.body.velocity;
   const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
   const currentAngularVelocity = car.body.angularVelocity;
-  
   // ステアリング入力の取得
   let steerInput = 0;
   if (cursors.left.isDown) steerInput -= 1;
@@ -606,57 +609,97 @@ function update() {
     const sx = gamepad.axes[0].getValue();
     if (Math.abs(sx) > 0.1) steerInput += sx;
   }
-  
   // 車体の向きと進行方向の計算
   let heading = car.rotation + Math.PI / 2;
   const forward = { x: Math.cos(heading), y: Math.sin(heading) };
   const vForward = velocity.x * forward.x + velocity.y * forward.y;
   const side = { x: -Math.sin(heading), y: Math.cos(heading) };
   const vSide = velocity.x * side.x + velocity.y * side.y;
-  
   // 進行方向の角度を計算
   const velocityAngle = Math.atan2(velocity.y, velocity.x);
-  
   // 車体の向きと進行方向の差を計算
   let directionDiff = Math.atan2(Math.sin(velocityAngle - heading), Math.cos(velocityAngle - heading));
-  
   // スリップ角の計算
   let slipAngle = Math.atan2(vSide, vForward);
-  
+
   // 直進安定性の計算：車体方向と進行方向が近く、ステアリング入力が少ない場合
   const isGoingStraight = Math.abs(directionDiff) < 0.15 && Math.abs(steerInput) < 0.1 && speed > 1.5;
-  
+
   // 基本的な角速度減衰
   let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
-  
   // 直進時の追加安定化
   if (isGoingStraight) {
-    // 直進時は角速度をより強く減衰させる
-    angularDamping *= 0.85;  // 0.92から0.85に強化
-    
-    // 車両が向いている方向に速度を収束させる
+    angularDamping *= 0.85;
     const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-    
     if (currentSpeed > 0.1) {
-      // 車体の前進方向と現在の速度方向の内積（前進成分）
       const forwardSpeed = velocity.x * forward.x + velocity.y * forward.y;
-      
-      // 車体方向への収束率を速度に応じて調整（高速時により強く）
       const baseConvergenceRate = 0.02;
-      const speedFactor = Math.min(speed / 10, 1.5);  // 速度に応じた係数
+      const speedFactor = Math.min(speed / 10, 1.5);
       const convergenceRate = baseConvergenceRate * (1 + speedFactor);
-      
-      // 目標速度：車体が向いている方向に現在の速度の大きさで進む
       const targetVelocity = {
         x: forward.x * forwardSpeed,
         y: forward.y * forwardSpeed
       };
-      
-      // 現在の速度から目標速度への補間
       car.setVelocity(
         velocity.x + (targetVelocity.x - velocity.x) * convergenceRate,
         velocity.y + (targetVelocity.y - velocity.y) * convergenceRate
       );
+    }
+  }
+
+  // --- スモーク発生・管理 ---
+  const slipThreshold = 0.25; // スリップ角
+  let isSliding = Math.abs(slipAngle) > slipThreshold && speed > 2.0;
+  // 出現頻度は60msごと
+  const smokeInterval = 60; // ms
+  const now = Date.now();
+  const startSmokeSize = 60; // px（出現時）
+  const maxSmokeSize = 120; // px（最大）
+  const maxAlpha = 0.7; // 70%
+  const smokeLife = 1500; // 消滅までの合計時間(ms)
+  const expandTime = 500; // 拡大完了までの時間(ms)
+  if (isSliding && (now - lastSmokeTime > smokeInterval)) {
+    if (smokeSprites.length >= 5) {
+      const oldest = smokeSprites.shift();
+      if (oldest) oldest.destroy();
+    }
+    // 車体の中心から20%後ろの位置
+    const carLength = car.displayHeight || 48; // デフォルト48px
+    const backOffset = -carLength * 0.2; // 20%後ろ
+    const smokeX = car.x + Math.cos(heading) * backOffset;
+    const smokeY = car.y + Math.sin(heading) * backOffset;
+    // スモークを車体の下レイヤーに
+    const smoke = car.scene.add.sprite(smokeX, smokeY, 'smoke');
+    smoke.setOrigin(0.5, 0.5);
+    smoke.setAlpha(maxAlpha);
+    // 60pxから開始
+    const initialScale = startSmokeSize / smoke.width;
+    smoke.setScale(initialScale);
+    smoke.birthTime = now;
+    smokeSprites.push(smoke);
+    lastSmokeTime = now;
+    // レイヤーを車体の下に
+    car.scene.children.moveBelow(smoke, car);
+  }
+  // 拡大→最大サイズ維持→消滅
+  for (let i = smokeSprites.length - 1; i >= 0; i--) {
+    const smoke = smokeSprites[i];
+    const age = now - smoke.birthTime;
+    // 0.5秒で最大サイズに拡大、その後維持
+    let pxScale;
+    if (age < expandTime) {
+      const scale = age / expandTime; // 0→1
+      pxScale = (startSmokeSize + (maxSmokeSize - startSmokeSize) * scale) / smoke.width;
+    } else {
+      pxScale = maxSmokeSize / smoke.width;
+    }
+    smoke.setScale(pxScale);
+    // 徐々に薄く（smokeLifeでmaxAlpha→0）
+    const alpha = Math.max(0, maxAlpha * (1 - age / smokeLife));
+    smoke.setAlpha(alpha);
+    if (age > smokeLife) {
+      smoke.destroy();
+      smokeSprites.splice(i, 1);
     }
   }
   

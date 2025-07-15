@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/gymkhana-racer/', // GitHub Pages用baseパス
+  base: '/gymkhana-racer/',
   server: {
     port: 5173,
     open: true,

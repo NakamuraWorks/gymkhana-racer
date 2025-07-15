@@ -623,7 +623,18 @@ function update() {
   let slipAngle = Math.atan2(vSide, vForward);
 
   // 直進安定性の計算：車体方向と進行方向が近く、ステアリング入力が少ない場合
-  const isGoingStraight = Math.abs(directionDiff) < 0.15 && Math.abs(steerInput) < 0.1 && speed > 1.5;
+  // 直進判定条件パラメータ
+  const MAX_DIRECTION_DIFF = 0.1;                  // 方向差の閾値
+  const MAX_SLIP_ANGLE = 0.1;                      // スリップ角の閾値
+  const MAX_ANGULAR_VELOCITY_STRAIGHT = 0.02;      // 直進とみなす最大角速度
+  const MIN_STRAIGHT_SPEED = 1.5;                  // 直進判定最小速度
+  // 直進安定性の計算：方向差・スリップ角・角速度が小さく、ステア入力が少ない場合
+  const isGoingStraight =
+    Math.abs(directionDiff) < MAX_DIRECTION_DIFF &&
+    Math.abs(slipAngle) < MAX_SLIP_ANGLE &&
+    Math.abs(currentAngularVelocity) < MAX_ANGULAR_VELOCITY_STRAIGHT &&
+    Math.abs(steerInput) < 0.1 &&
+    speed > MIN_STRAIGHT_SPEED;
 
   // 基本的な角速度減衰
   let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;

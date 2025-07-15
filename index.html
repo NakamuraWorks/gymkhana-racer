@@ -5,22 +5,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gymkhana Racer</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      width: 100vw;
-      height: 100vh;
-    }
-    canvas {
-      display: block;
-    }
-  </style>
+  <link rel="stylesheet" href="/src/style.css">
 </head>
 
 <body>
-  <script type="module" src="/src/main.js"></script>
+  <div id="menu-container">
+    <h1>Gymkhana Racer</h1>
+    <div class="menu-item">
+      <label for="course-select">Select Course:</label>
+      <select id="course-select"></select>
+    </div>
+    <button id="start-button">Start Game</button>
+  </div>
+
+  <div id="game-container" style="display: none;">
+    <!-- The game canvas will be created here by main.js -->
+  </div>
+
+  <script type="module" src="/src/menu.js"></script>
 </body>
 
 </html>

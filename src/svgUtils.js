@@ -22,6 +22,15 @@ export function parsePath(svgDoc, id, scaleX, scaleY, offsetX = 0, offsetY = 0) 
           points.push({ x, y });
         }
       }
+    } else if (command === 'C') {
+      const coords = params.split(/[\s,]+/).filter(s => s.length > 0);
+      if (coords.length >= 6) {
+        currentX = parseFloat(coords[4]);
+        currentY = parseFloat(coords[5]);
+        const x = currentX * scaleX + offsetX;
+        const y = currentY * scaleY + offsetY;
+        points.push({ x, y });
+      }
     }
   }
   return points.length >= 2 ? points : null;
@@ -44,6 +53,36 @@ export function parseLineElement(svgDoc, id, scaleX, scaleY, offsetX = 0, offset
     return parsePath(svgDoc, id, scaleX, scaleY, offsetX, offsetY);
   }
   return points.length >= 2 ? points : null;
+}
+
+export function parseSpawnPoint(svgDoc, scaleX, scaleY, offsetX = 0, offsetY = 0) {
+  const spawnElem = svgDoc.getElementById('spawn');
+  if (!spawnElem) return null;
+
+  let x = 0, y = 0;
+  if (spawnElem.tagName === 'circle' || spawnElem.tagName === 'ellipse') {
+    x = parseFloat(spawnElem.getAttribute('cx')) || 0;
+    y = parseFloat(spawnElem.getAttribute('cy')) || 0;
+  } else if (spawnElem.tagName === 'rect') {
+    x = (parseFloat(spawnElem.getAttribute('x')) || 0) + (parseFloat(spawnElem.getAttribute('width')) || 0) / 2;
+    y = (parseFloat(spawnElem.getAttribute('y')) || 0) + (parseFloat(spawnElem.getAttribute('height')) || 0) / 2;
+  } else if (spawnElem.tagName === 'path') {
+    const points = parsePath(svgDoc, 'spawn', 1, 1, 0, 0); // Use raw coordinates
+    if (points && points.length > 0) {
+      let sumX = 0, sumY = 0;
+      points.forEach(p => {
+        sumX += p.x;
+        sumY += p.y;
+      });
+      x = sumX / points.length;
+      y = sumY / points.length;
+    }
+  }
+
+  return {
+    x: x * scaleX + offsetX,
+    y: y * scaleY + offsetY
+  };
 }
 
 export function isValidVertices(vertices) {

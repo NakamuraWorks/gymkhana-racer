@@ -596,6 +596,7 @@ function update() {
     gamepad = this.input.gamepad.getPad(0);
   }
   const padAccel = gamepad && gamepad.buttons && gamepad.buttons.length > 0 ? gamepad.buttons[0].pressed : false;
+  const padBrake = gamepad && gamepad.buttons && gamepad.buttons.length > 2 ? gamepad.buttons[2].pressed : false;
   const rotationSpeed = 0.002;
   const forceMagnitude = 0.018;  // 0.012から0.018に増加（1.5倍）
   const velocity = car.body.velocity;
@@ -723,9 +724,21 @@ function update() {
     }
   }
   
+  // バック時はハンドル逆転
+  let isReversing = false;
+  if (keyZ.isDown || padBrake) {
+    // 停車時はバック
+    if (speed < 1.0) {
+      isReversing = true;
+    }
+  }
+  let steerInputForSteer = steerInput;
+  if (isReversing) {
+    steerInputForSteer = -steerInput;
+  }
   // ステアリング計算
   const maxSteerAngle = Math.PI / 3;
-  const targetDirection = heading + steerInput * maxSteerAngle;
+  const targetDirection = heading + steerInputForSteer * maxSteerAngle;
   let angleDiff = Math.atan2(Math.sin(targetDirection - heading), Math.cos(targetDirection - heading));
   
   let slipLoss = 1.0 - Math.min(Math.abs(slipAngle) / (Math.PI / 2), 1.0) * 0.7;
@@ -739,7 +752,7 @@ function update() {
     const forceY = Math.sin(angle) * forceMagnitude;
     car.applyForce({ x: forceX, y: forceY });
   }
-  const padBrake = gamepad && gamepad.buttons && gamepad.buttons.length > 2 ? gamepad.buttons[2].pressed : false;
+  // ...existing code...
   if (keyZ.isDown || padBrake) {
     // 現在の速度が低い場合（停車時）はバック
     if (speed < 1.0) {

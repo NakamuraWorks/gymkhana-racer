@@ -1,4 +1,16 @@
 import Phaser from 'phaser';
+import { parsePath, parseLineElement, isValidVertices } from './svgUtils.js';
+import {
+  computeSteering,
+  computeAngularVelocity,
+  applyDriveForce,
+  applyBrakeOrReverse,
+  applyIdleFriction
+} from './carPhysics.js';
+import { formatTime, handleControlLineCrossing, createLapHistoryUpdater } from './lapManager.js';
+import { createSmokeManager } from './smokeManager.js';
+import { getSteeringInput, getGamepadButtons, initializeGamepad } from './inputManager.js';
+import { computeStraightStabilization } from './stabilization.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -41,8 +53,7 @@ let bestTimeText;
 let lapHistoryTexts = [];
 let lapHistory = [];  // 過去のラップタイム履歴（最新5周分）
 // スモーク管理用
-let smokeSprites = [];
-let lastSmokeTime = 0;
+let smokeManager;
 
 function preload() {
   this.load.image('car', 'car.png');
@@ -102,87 +113,15 @@ function create() {
   
   // console.log('Using 4K scaling:', { adjustedScaleX, adjustedScaleY, offsetX, offsetY });
 
-  // SVGパース関数
-  function parsePath(id) {
-    const path = svgDoc.getElementById(id);
-    if (!path) {
-      console.warn(`Path with id '${id}' not found in SVG`);
-      return null;
-    }
-    const d = path.getAttribute('d');
-    if (!d) {
-      console.warn(`Path '${id}' has no 'd' attribute`);
-      return null;
-    }
-    const points = [];
-    // より包括的な正規表現でパスをパース
-    const regex = /([MLHVCSQTAZ])\s*([\d\.\-\s,]*)/gi;
-    let match;
-    let currentX = 0, currentY = 0;
-    
-    while ((match = regex.exec(d)) !== null) {
-      const command = match[1].toUpperCase();
-      const params = match[2].trim();
-      
-      if (command === 'M' || command === 'L') {
-        const coords = params.split(/[\s,]+/).filter(s => s.length > 0);
-        for (let i = 0; i < coords.length; i += 2) {
-          if (i + 1 < coords.length) {
-            currentX = parseFloat(coords[i]);
-            currentY = parseFloat(coords[i + 1]);
-            const x = currentX * adjustedScaleX + offsetX;
-            const y = currentY * adjustedScaleY + offsetY;
-            points.push({ x, y });
-          }
-        }
-      }
-    }
-    
-    // console.log(`Parsed ${points.length} points for path '${id}'`);
-    return points.length >= 2 ? points : null;  // ラインは2点以上でOK
-  }
+  // ...existing code...
 
-  // ライン専用のパース関数（2点のラインに対応）
-  function parseLineElement(id) {
-    const elem = svgDoc.getElementById(id);
-    if (!elem) {
-      console.warn(`Element with id '${id}' not found in SVG`);
-      return null;
-    }
+  const innerPoints = parsePath(svgDoc, 'collisionInner', adjustedScaleX, adjustedScaleY, offsetX, offsetY);
+  const outerPoints = parsePath(svgDoc, 'collisionOuter', adjustedScaleX, adjustedScaleY, offsetX, offsetY);
 
-    let points = [];
-    
-    if (elem.tagName === 'line') {
-      // line要素の場合
-      const x1 = parseFloat(elem.getAttribute('x1')) || 0;
-      const y1 = parseFloat(elem.getAttribute('y1')) || 0;
-      const x2 = parseFloat(elem.getAttribute('x2')) || 0;
-      const y2 = parseFloat(elem.getAttribute('y2')) || 0;
-      
-      points = [
-        { x: x1 * adjustedScaleX + offsetX, y: y1 * adjustedScaleY + offsetY },
-        { x: x2 * adjustedScaleX + offsetX, y: y2 * adjustedScaleY + offsetY }
-      ];
-      // console.log(`Parsed line element '${id}': (${x1},${y1}) to (${x2},${y2})`);
-    } else if (elem.tagName === 'path') {
-      // path要素の場合は既存のparsePath関数を使用
-      return parsePath(id);
-    }
-    
-    return points.length >= 2 ? points : null;
-  }
-
-  function isValidVertices(vertices) {
-    return vertices && vertices.length >= 3;
-  }
-
-  const innerPoints = parsePath('collisionInner');
-  const outerPoints = parsePath('collisionOuter');
-  
   // コントロールライン用のパースと設定
-  const startFinishLine = parseLineElement('startFinishLine');
-  const checkpoint1 = parseLineElement('checkpoint1');
-  const checkpoint2 = parseLineElement('checkpoint2');
+  const startFinishLine = parseLineElement(svgDoc, 'startFinishLine', adjustedScaleX, adjustedScaleY, offsetX, offsetY);
+  const checkpoint1 = parseLineElement(svgDoc, 'checkpoint1', adjustedScaleX, adjustedScaleY, offsetX, offsetY);
+  const checkpoint2 = parseLineElement(svgDoc, 'checkpoint2', adjustedScaleX, adjustedScaleY, offsetX, offsetY);
   
   // console.log('Parsed control lines:');
   // console.log('- startFinishLine:', startFinishLine);
@@ -338,11 +277,8 @@ function create() {
   keyX = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
   keyZ = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
   
-  // ゲームパッド設定（安全にチェック）
-  if (this.input.gamepad) {
-    this.input.gamepad.start();
-    this.input.gamepad.once('connected', pad => { gamepad = pad; });
-  }
+  // ゲームパッド初期化
+  gamepad = initializeGamepad(this);
 
   // 4Kマップ上のspawn位置の取得
   let carX = WORLD_WIDTH / 2;
@@ -444,43 +380,13 @@ function create() {
   car.setFriction(0.05);  // 0.08から0.05に下げてさらにスライドしやすく
   // console.log('Car created:', car);
   
+  // スモーク管理の初期化
+  smokeManager = createSmokeManager(this);
+  
   // カメラ設定：車を追従
   this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   this.cameras.main.startFollow(car, true, 0.1, 0.1);
   this.cameras.main.setZoom(1.0);
-  
-  // コントロールライン通過検出のイベント設定
-  this.matter.world.on('collisionstart', function (event) {
-    const pairs = event.pairs;
-    
-    for (let i = 0; i < pairs.length; i++) {
-      const bodyA = pairs[i].bodyA;
-      const bodyB = pairs[i].bodyB;
-      
-      // 車とコントロールラインの衝突を検出
-      if ((bodyA === car.body && bodyB.controlLineId) || (bodyB === car.body && bodyA.controlLineId)) {
-        const controlLineId = bodyA.controlLineId || bodyB.controlLineId;
-        handleControlLineCrossing(controlLineId);
-      }
-    }
-  });
-  
-  // タイム表示UI
-  timeText = this.add.text(20, 20, 'Time: --:--.--', {
-    fontSize: '24px',
-    fill: '#000000',
-    backgroundColor: '#ffffff',
-    padding: { x: 10, y: 5 }
-  });
-  timeText.setScrollFactor(0); // カメラに固定
-  
-  bestTimeText = this.add.text(20, 60, 'Best: --:--.--', {
-    fontSize: '20px',
-    fill: '#000000',
-    backgroundColor: '#ffffff',
-    padding: { x: 10, y: 5 }
-  });
-  bestTimeText.setScrollFactor(0); // カメラに固定
   
   // ラップ履歴表示UI（過去5周分）
   lapHistoryTexts = [];
@@ -496,279 +402,131 @@ function create() {
     lapHistoryTexts.push(lapText);
   }
   
+  // 現在のタイム表示
+  timeText = this.add.text(20, 20, 'Time: --:--.--', {
+    fontSize: '20px',
+    fill: '#000000',
+    backgroundColor: '#ffffff',
+    padding: { x: 10, y: 5 }
+  });
+  timeText.setScrollFactor(0); // カメラに固定
+  
+  // ベストタイム表示
+  bestTimeText = this.add.text(20, 55, 'Best: --:--.--', {
+    fontSize: '18px',
+    fill: '#0066cc',
+    backgroundColor: '#ffffff',
+    padding: { x: 10, y: 5 }
+  });
+  bestTimeText.setScrollFactor(0); // カメラに固定
+  
+  // ラップ管理機能の初期化（lapHistoryTexts作成後）
+  const lapHistoryUpdater = createLapHistoryUpdater(lapHistoryTexts);
+  
+  // コントロールライン通過検出のイベント設定
+  this.matter.world.on('collisionstart', function (event) {
+    const pairs = event.pairs;
+    
+    for (let i = 0; i < pairs.length; i++) {
+      const bodyA = pairs[i].bodyA;
+      const bodyB = pairs[i].bodyB;
+      
+      // 車とコントロールラインの衝突を検出
+      if ((bodyA === car.body && bodyB.controlLineId) || (bodyB === car.body && bodyA.controlLineId)) {
+        const controlLineId = bodyA.controlLineId || bodyB.controlLineId;
+        const result = handleControlLineCrossing(
+          controlLineId,
+          controlLines,
+          raceStartTime,
+          checkpointsPassed,
+          bestLapTime,
+          lapHistory
+        );
+        
+        // 結果の反映
+        if (result) {
+          raceStartTime = result.raceStartTime;
+          checkpointsPassed = result.checkpointsPassed;
+          bestLapTime = result.bestLapTime;
+          lapHistory = result.lapHistory;
+          
+          // UI更新
+          lapHistoryUpdater(lapHistory, bestLapTime);
+        }
+      }
+    }
+  });
+  
   // console.log('Camera setup: following car with bounds', WORLD_WIDTH, 'x', WORLD_HEIGHT);
 }
 
-// コントロールライン通過処理
-function handleControlLineCrossing(controlLineId) {
-  const currentTime = Date.now();
-  
-  // console.log(`Control line crossed: ${controlLineId}`);
-  
-  // 対応するコントロールラインを見つける
-  const line = controlLines.find(l => l.id === controlLineId);
-  if (!line) return;
-  
-  if (controlLineId === 'startFinish') {
-    if (raceStartTime === null) {
-      // レース開始
-      raceStartTime = currentTime;
-      checkpointsPassed = 0;
-      controlLines.forEach(l => l.passed = false);
-      line.passed = true;
-      // console.log('Race started!');
-    } else if (checkpointsPassed === controlLines.filter(l => l.type === 'checkpoint').length) {
-      // ラップ完了（全チェックポイント通過済み）
-      currentLapTime = currentTime - raceStartTime;
-      
-      // ラップ履歴に追加（最新5周分を保持）
-      lapHistory.unshift(currentLapTime);
-      if (lapHistory.length > 5) {
-        lapHistory.pop();
-      }
-      
-      // ラップ履歴表示を更新
-      updateLapHistoryDisplay();
-      
-      if (bestLapTime === null || currentLapTime < bestLapTime) {
-        bestLapTime = currentLapTime;
-        // console.log(`New best lap time: ${formatTime(bestLapTime)}`);
-      } else {
-        // console.log(`Lap completed: ${formatTime(currentLapTime)} (Best: ${formatTime(bestLapTime)})`);
-      }
-      
-      // 新しいラップを開始
-      raceStartTime = currentTime;
-      checkpointsPassed = 0;
-      controlLines.forEach(l => l.passed = false);
-      line.passed = true;
-    }
-  } else if (line.type === 'checkpoint' && !line.passed && raceStartTime !== null) {
-    // チェックポイント通過
-    line.passed = true;
-    checkpointsPassed++;
-    // console.log(`Checkpoint ${checkpointsPassed} passed!`);
-  }
-}
-
-// 時間をフォーマットする関数
-function formatTime(milliseconds) {
-  const minutes = Math.floor(milliseconds / 60000);
-  const seconds = Math.floor((milliseconds % 60000) / 1000);
-  const ms = Math.floor((milliseconds % 1000) / 10);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-}
-
-// ラップ履歴表示を更新する関数
-function updateLapHistoryDisplay() {
-  for (let i = 0; i < lapHistoryTexts.length; i++) {
-    if (i < lapHistory.length) {
-      const lapTime = lapHistory[i];
-      const isBest = lapTime === bestLapTime;
-      
-      lapHistoryTexts[i].setText(`Lap ${lapHistory.length - i}: ${formatTime(lapTime)}`);
-      lapHistoryTexts[i].setVisible(true);
-      
-      // ベストタイムは色を変更
-      if (isBest) {
-        lapHistoryTexts[i].setStyle({
-          fontSize: '16px',
-          fill: '#00aa00',
-          backgroundColor: '#e0ffe0',
-          padding: { x: 8, y: 3 }
-        });
-      } else {
-        lapHistoryTexts[i].setStyle({
-          fontSize: '16px',
-          fill: '#666666',
-          backgroundColor: '#f0f0f0',
-          padding: { x: 8, y: 3 }
-        });
-      }
-    } else {
-      lapHistoryTexts[i].setVisible(false);
-    }
-  }
-}
-
 function update() {
+  // ゲームパッドの取得
   if (!gamepad && this.input.gamepad && this.input.gamepad.total > 0) {
     gamepad = this.input.gamepad.getPad(0);
   }
-  const padAccel = gamepad && gamepad.buttons && gamepad.buttons.length > 0 ? gamepad.buttons[0].pressed : false;
-  const padBrake = gamepad && gamepad.buttons && gamepad.buttons.length > 2 ? gamepad.buttons[2].pressed : false;
-  const rotationSpeed = 0.002;
-  const forceMagnitude = 0.018;  // 0.012から0.018に増加（1.5倍）
+  
+  // 入力の取得
+  const steerInput = getSteeringInput(cursors, gamepad);
+  const { accel, brake } = getGamepadButtons(gamepad, keyX, keyZ);
+  
   const velocity = car.body.velocity;
   const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
   const currentAngularVelocity = car.body.angularVelocity;
-  // ステアリング入力の取得
-  let steerInput = 0;
-  if (cursors.left.isDown) steerInput -= 1;
-  if (cursors.right.isDown) steerInput += 1;
-  if (gamepad && gamepad.axes && gamepad.axes.length > 0) {
-    const sx = gamepad.axes[0].getValue();
-    if (Math.abs(sx) > 0.1) steerInput += sx;
-  }
+  
   // 車体の向きと進行方向の計算
-  let heading = car.rotation + Math.PI / 2;
+  const heading = car.rotation + Math.PI / 2;
   const forward = { x: Math.cos(heading), y: Math.sin(heading) };
   const vForward = velocity.x * forward.x + velocity.y * forward.y;
   const side = { x: -Math.sin(heading), y: Math.cos(heading) };
   const vSide = velocity.x * side.x + velocity.y * side.y;
-  // 進行方向の角度を計算
-  const velocityAngle = Math.atan2(velocity.y, velocity.x);
-  // 車体の向きと進行方向の差を計算
-  let directionDiff = Math.atan2(Math.sin(velocityAngle - heading), Math.cos(velocityAngle - heading));
-  // スリップ角の計算
-  let slipAngle = Math.atan2(vSide, vForward);
-
-  // 直進安定性の計算：車体方向と進行方向が近く、ステアリング入力が少ない場合
-  // 直進判定条件パラメータ
-  const MAX_DIRECTION_DIFF = 0.1;                  // 方向差の閾値
-  const MAX_SLIP_ANGLE = 0.1;                      // スリップ角の閾値
-  const MAX_ANGULAR_VELOCITY_STRAIGHT = 0.02;      // 直進とみなす最大角速度
-  const MIN_STRAIGHT_SPEED = 1.5;                  // 直進判定最小速度
-  // 直進安定性の計算：方向差・スリップ角・角速度が小さく、ステア入力が少ない場合
-  const isGoingStraight =
-    Math.abs(directionDiff) < MAX_DIRECTION_DIFF &&
-    Math.abs(slipAngle) < MAX_SLIP_ANGLE &&
-    Math.abs(currentAngularVelocity) < MAX_ANGULAR_VELOCITY_STRAIGHT &&
-    Math.abs(steerInput) < 0.1 &&
-    speed > MIN_STRAIGHT_SPEED;
-
-  // 基本的な角速度減衰
-  let angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
-  // 直進時の追加安定化（さらに強化）
-  if (isGoingStraight) {
-    angularDamping *= 0.7; // 0.85→0.7で減衰を強化
-    const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-    if (currentSpeed > 0.1) {
-      // 完全収束処理：車体の向きと進行方向が十分近い場合はvelocityベクトルをheading方向に揃える
-      if (Math.abs(directionDiff) < 0.05) {
-        // heading方向に完全に揃える
-        const newVx = Math.cos(heading) * currentSpeed;
-        const newVy = Math.sin(heading) * currentSpeed;
-        car.setVelocity(newVx, newVy);
-      } else {
-        // 通常の収束処理
-        const forwardSpeed = velocity.x * forward.x + velocity.y * forward.y;
-        const baseConvergenceRate = 0.03; // 0.02→0.03で収束力を強化
-        const speedFactor = Math.min(speed / 10, 1.5);
-        const convergenceRate = baseConvergenceRate * (1 + speedFactor);
-        const targetVelocity = {
-          x: forward.x * forwardSpeed,
-          y: forward.y * forwardSpeed
-        };
-        car.setVelocity(
-          velocity.x + (targetVelocity.x - velocity.x) * convergenceRate,
-          velocity.y + (targetVelocity.y - velocity.y) * convergenceRate
-        );
-      }
-    }
-  }
-
-  // --- スモーク発生・管理 ---
-  const slipThreshold = 0.25; // スリップ角
-  let isSliding = Math.abs(slipAngle) > slipThreshold && speed > 2.0;
-  // 出現頻度を半分に（120msごと）
-  const smokeInterval = 120; // ms
-  const now = Date.now();
-  const startSmokeSize = 60; // px（出現時）
-  const maxSmokeSize = 120; // px（最大）
-  const maxAlpha = 0.7; // 70%
-  const smokeLife = 1500; // 消滅までの合計時間(ms)
-  const expandTime = 500; // 拡大完了までの時間(ms)
-  if (isSliding && (now - lastSmokeTime > smokeInterval)) {
-    if (smokeSprites.length >= 5) {
-      const oldest = smokeSprites.shift();
-      if (oldest) oldest.destroy();
-    }
-    // 車体の中心から20%後ろの位置
-    const carLength = car.displayHeight || 48; // デフォルト48px
-    const backOffset = -carLength * 0.2; // 20%後ろ
-    const smokeX = car.x + Math.cos(heading) * backOffset;
-    const smokeY = car.y + Math.sin(heading) * backOffset;
-    // スモークを車体の下レイヤーに
-    const smoke = car.scene.add.sprite(smokeX, smokeY, 'smoke');
-    smoke.setOrigin(0.5, 0.5);
-    smoke.setAlpha(maxAlpha);
-    // 60pxから開始
-    const initialScale = startSmokeSize / smoke.width;
-    smoke.setScale(initialScale);
-    smoke.birthTime = now;
-    smokeSprites.push(smoke);
-    lastSmokeTime = now;
-    // レイヤーを車体の下に
-    car.scene.children.moveBelow(smoke, car);
-  }
-  // 拡大→最大サイズ維持→消滅
-  for (let i = smokeSprites.length - 1; i >= 0; i--) {
-    const smoke = smokeSprites[i];
-    const age = now - smoke.birthTime;
-    // 0.5秒で最大サイズに拡大、その後維持
-    let pxScale;
-    if (age < expandTime) {
-      const scale = age / expandTime; // 0→1
-      pxScale = (startSmokeSize + (maxSmokeSize - startSmokeSize) * scale) / smoke.width;
-    } else {
-      pxScale = maxSmokeSize / smoke.width;
-    }
-    smoke.setScale(pxScale);
-    // 徐々に薄く（smokeLifeでmaxAlpha→0）
-    const alpha = Math.max(0, maxAlpha * (1 - age / smokeLife));
-    smoke.setAlpha(alpha);
-    if (age > smokeLife) {
-      smoke.destroy();
-      smokeSprites.splice(i, 1);
-    }
-  }
+  const slipAngle = Math.atan2(vSide, vForward);
   
-  // バック時はハンドル逆転
-  let isReversing = false;
-  if (keyZ.isDown || padBrake) {
-    // 停車時はバック
-    if (speed < 1.0) {
-      isReversing = true;
-    }
-  }
-  let steerInputForSteer = steerInput;
-  if (isReversing) {
-    steerInputForSteer = -steerInput;
-  }
+  // バック判定
+  const isReversing = brake && speed < 1.0;
+  
   // ステアリング計算
-  const maxSteerAngle = Math.PI / 3;
-  const targetDirection = heading + steerInputForSteer * maxSteerAngle;
-  let angleDiff = Math.atan2(Math.sin(targetDirection - heading), Math.cos(targetDirection - heading));
+  const { angleDiff } = computeSteering({
+    steerInput,
+    isReversing,
+    heading,
+    maxSteerAngle: Math.PI / 3
+  });
   
-  let slipLoss = 1.0 - Math.min(Math.abs(slipAngle) / (Math.PI / 2), 1.0) * 0.7;
-  let traction = Math.max(0, Math.min(1, (Math.abs(vForward) - 0.05) / 0.7));
-  let steerRate = 0.00264 * traction * slipLoss;
+  // 角速度計算
+  const angularDamping = 0.99906 - Math.min(speed / 18, 1) * 0.01706;
+  const angularVelocity = computeAngularVelocity({
+    currentAngularVelocity,
+    angularDamping,
+    angleDiff,
+    slipAngle,
+    vForward
+  });
+  car.setAngularVelocity(angularVelocity);
   
-  car.setAngularVelocity(currentAngularVelocity * angularDamping + angleDiff * steerRate);
-  if (keyX.isDown || padAccel) {
-    const angle = car.rotation + Math.PI / 2;
-    const forceX = Math.cos(angle) * forceMagnitude;
-    const forceY = Math.sin(angle) * forceMagnitude;
-    car.applyForce({ x: forceX, y: forceY });
-  }
-  // ...existing code...
-  if (keyZ.isDown || padBrake) {
-    // 現在の速度が低い場合（停車時）はバック
-    if (speed < 1.0) {
-      const angle = car.rotation + Math.PI / 2;
-      const backForceX = -Math.cos(angle) * forceMagnitude * 0.3;  // 通常の30%の力でバック
-      const backForceY = -Math.sin(angle) * forceMagnitude * 0.3;
-      car.applyForce({ x: backForceX, y: backForceY });
-    } else {
-      // 通常時はブレーキ
-      car.setVelocity(car.body.velocity.x * 0.98, car.body.velocity.y * 0.98);
+  // 直進安定化の適用
+  const stabilization = computeStraightStabilization(car, steerInput, speed);
+  if (stabilization.shouldApply) {
+    car.setAngularVelocity(car.body.angularVelocity * stabilization.angularDamping);
+    if (stabilization.shouldCorrectVelocity) {
+      car.setVelocity(stabilization.correctedVelocity.x, stabilization.correctedVelocity.y);
     }
   }
-  if (!(keyX.isDown || padAccel) && !(keyZ.isDown || padBrake)) {
-    car.setVelocity(car.body.velocity.x * 0.995, car.body.velocity.y * 0.995);
-  }
+
+  // 駆動力の適用
+  const forceMagnitude = 0.018;
+  const angle = car.rotation + Math.PI / 2;
   
+  if (accel) {
+    applyDriveForce({ car, angle, forceMagnitude });
+  } else if (brake) {
+    applyBrakeOrReverse({ car, angle, forceMagnitude, speed });
+  } else {
+    applyIdleFriction({ car });
+  }
+  // スモーク効果の更新
+  smokeManager.update(car, slipAngle, speed, heading);
+
   // タイム表示の更新
   if (raceStartTime !== null) {
     const currentTime = Date.now() - raceStartTime;

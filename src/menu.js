@@ -1,24 +1,37 @@
+/**
+ * メニュー画面
+ *
+ * コース選択とゲーム開始ボタンを提供する。
+ */
+
 import { startGame, shutdownGame } from './main.js';
 
-// Available courses
+/** @type {Array<{id: string, name: string}>} */
 const courses = [
     { id: 'tomin', name: 'Tomin Motorland' },
     { id: 'okspo', name: 'Okegawa SportsLand' },
-    // Add more courses here in the future
 ];
 
+/** @type {string} */
 let selectedCourseId = courses[0].id;
 
+/**
+ * メニューを初期化する。
+ */
 function initMenu() {
     const menuContainer = document.getElementById('menu-container');
-    const gameContainer = document.getElementById('game-container');
     const courseSelect = document.getElementById('course-select');
     const startButton = document.getElementById('start-button');
 
-    // Ensure the menu is displayed and any previous game instance is cleared.
+    if (!menuContainer || !courseSelect || !startButton) {
+        console.error('Menu elements not found. Aborting init.');
+        return;
+    }
+
+    // 以前のゲームインスタンスをクリーンアップ
     shutdownGame();
 
-    // Populate course selection
+    // コースリストを埋め込み
     courses.forEach(course => {
         const option = document.createElement('option');
         option.value = course.id;
@@ -26,18 +39,18 @@ function initMenu() {
         courseSelect.appendChild(option);
     });
 
-    // Handle course selection
+    // コース選択変更
     courseSelect.addEventListener('change', (event) => {
         selectedCourseId = event.target.value;
     });
 
-    // Handle start button click
+    // スタートボタン
     startButton.addEventListener('click', () => {
         menuContainer.style.display = 'none';
-        gameContainer.style.display = 'block';
+        document.getElementById('game-container').style.display = 'block';
         startGame(selectedCourseId);
     });
 }
 
-// Initialize the menu when the DOM is ready
+// DOM 準備完了後にメニューを初期化
 document.addEventListener('DOMContentLoaded', initMenu);

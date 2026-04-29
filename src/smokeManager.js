@@ -1,71 +1,95 @@
-// スモーク効果管理ユーティリティ
+/**
+ * スモーク効果管理ユーティリティ
+ *
+ * ドリフト時に車の後方からスモークパーティクルを発生・更新する。
+ */
 
+import { SMOKE } from './constants.js';
+
+const {
+  SLIP_ANGLE_THRESHOLD,
+  MIN_SPEED,
+  SPAWN_INTERVAL,
+  START_SIZE,
+  MAX_SIZE,
+  MAX_ALPHA,
+  LIFE_TIME,
+  EXPAND_TIME
+} = SMOKE;
+
+/**
+ * スモークマネージャーを生成する。
+ *
+ * @param {Phaser.Scene} scene - Phaser シーン
+ * @returns {Object} smokeManager インスタンス
+ */
 export function createSmokeManager(scene) {
   return {
     sprites: [],
     lastTime: 0,
     scene: scene,
-    
+
+    /**
+     * 毎フレーム呼び出されるスモーク更新関数。
+     *
+     * @param {Phaser.Physics.Matter.Image} car - 車
+     * @param {number} slipAngle - 現在のスリップ角
+     * @param {number} speed - 現在の速度
+     * @param {number} heading - 車の進行方向（ラジアン）
+     */
     update(car, slipAngle, speed, heading) {
-      const slipThreshold = 0.25;
-      const isSliding = Math.abs(slipAngle) > slipThreshold && speed > 2.0;
-      const smokeInterval = 120; // ms
-      const now = Date.now();
-      const startSmokeSize = 60; // px（出現時）
-      const maxSmokeSize = 120; // px（最大）
-      const maxAlpha = 0.7; // 70%
-      const smokeLife = 1500; // 消滅までの合計時間(ms)
-      const expandTime = 500; // 拡大完了までの時間(ms)
-      
+      const isSliding = Math.abs(slipAngle) > SLIP_ANGLE_THRESHOLD && speed > MIN_SPEED;
+      const now = this.scene.time.now;
+
       // スモーク生成
-      if (isSliding && (now - this.lastTime > smokeInterval)) {
+      if (isSliding && (now - this.lastTime > SPAWN_INTERVAL)) {
+        // 最大スプライト数に達したら最古のを削除
         if (this.sprites.length >= 5) {
           const oldest = this.sprites.shift();
           if (oldest) oldest.destroy();
         }
-        
-        // 車体の中心から20%後ろの位置
+
+        // 車体の中心から後ろの位置にスモークを生成
         const carLength = car.displayHeight || 48;
         const backOffset = -carLength * 0.2;
         const smokeX = car.x + Math.cos(heading) * backOffset;
         const smokeY = car.y + Math.sin(heading) * backOffset;
-        
-        // スモークを車体の下レイヤーに
+
         const smoke = this.scene.add.sprite(smokeX, smokeY, 'smoke');
         smoke.setOrigin(0.5, 0.5);
-        smoke.setAlpha(maxAlpha);
-        
-        const initialScale = startSmokeSize / smoke.width;
+        smoke.setAlpha(MAX_ALPHA);
+
+        const initialScale = START_SIZE / smoke.width;
         smoke.setScale(initialScale);
         smoke.birthTime = now;
         this.sprites.push(smoke);
         this.lastTime = now;
-        
+
         // レイヤーを車体の下に
         this.scene.children.moveBelow(smoke, car);
       }
-      
+
       // スモーク更新・削除
       for (let i = this.sprites.length - 1; i >= 0; i--) {
         const smoke = this.sprites[i];
         const age = now - smoke.birthTime;
-        
+
         // サイズ変更
         let pxScale;
-        if (age < expandTime) {
-          const scale = age / expandTime;
-          pxScale = (startSmokeSize + (maxSmokeSize - startSmokeSize) * scale) / smoke.width;
+        if (age < EXPAND_TIME) {
+          const scale = age / EXPAND_TIME;
+          pxScale = (START_SIZE + (MAX_SIZE - START_SIZE) * scale) / smoke.width;
         } else {
-          pxScale = maxSmokeSize / smoke.width;
+          pxScale = MAX_SIZE / smoke.width;
         }
         smoke.setScale(pxScale);
-        
-        // 透明度変更
-        const alpha = Math.max(0, maxAlpha * (1 - age / smokeLife));
+
+        // 透明度変更（フェードアウト）
+        const alpha = Math.max(0, MAX_ALPHA * (1 - age / LIFE_TIME));
         smoke.setAlpha(alpha);
-        
-        // 削除
-        if (age > smokeLife) {
+
+        // 寿命を超えたら削除
+        if (age > LIFE_TIME) {
           smoke.destroy();
           this.sprites.splice(i, 1);
         }

@@ -183,6 +183,9 @@ class GameScene extends Phaser.Scene {
 
   /**
    * コリジョンウォールを設定する。
+   *
+   * 各セグメントごとにrectangleボディを生成する。
+   * 将来的にはaddVerticesでポリゴン化してdraw callを削減する予定。
    */
   setupCollisionWalls(innerPoints, outerPoints) {
     const createWallSegments = (points) => {
@@ -444,6 +447,11 @@ export function startGame(courseId) {
  */
 export function shutdownGame() {
   if (game) {
+    // シーンのsmokeManagerを明示的に破棄
+    const scene = game.scene.getScene('GameScene');
+    if (scene && scene.smokeManager && scene.smokeManager.destroy) {
+      scene.smokeManager.destroy();
+    }
     game.destroy(true);
     game = null;
   }

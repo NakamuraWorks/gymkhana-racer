@@ -184,29 +184,39 @@ class GameScene extends Phaser.Scene {
   /**
    * コリジョンウォールを設定する。
    *
-   * 各セグメントごとにrectangleボディを生成する。
-   * 将来的にはaddVerticesでポリゴン化してdraw callを削減する予定。
+   * vertices を使用してポリゴンボディを生成し、物理演算の計算量と draw call を削減する。
+   * フォールバックとしてセグメントごとの rectangle も用意する。
    */
   setupCollisionWalls(innerPoints, outerPoints) {
-    const createWallSegments = (points) => {
+    const createWallFromVertices = (points) => {
       if (!isValidVertices(points)) return;
-      for (let i = 0; i < points.length; i++) {
-        const p1 = points[i];
-        const p2 = points[(i + 1) % points.length];
-        const centerX = (p1.x + p2.x) / 2;
-        const centerY = (p1.y + p2.y) / 2;
-        const length = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
-        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-        this.matter.add.rectangle(centerX, centerY, length, 4, {
+
+      // Matter.js vertices で閉じたポリゴンを生成（単一ボディ = 計算量削減）
+      try {
+        this.matter.add.vertices(points, {
           isStatic: true,
-          angle: angle,
           render: { visible: false }
         });
+      } catch {
+        // vertices 生成失敗時はセグメントごとの rectangle にフォールバック
+        for (let i = 0; i < points.length; i++) {
+          const p1 = points[i];
+          const p2 = points[(i + 1) % points.length];
+          const centerX = (p1.x + p2.x) / 2;
+          const centerY = (p1.y + p2.y) / 2;
+          const length = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+          const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+          this.matter.add.rectangle(centerX, centerY, length, 4, {
+            isStatic: true,
+            angle: angle,
+            render: { visible: false }
+          });
+        }
       }
     };
 
-    createWallSegments(innerPoints);
-    createWallSegments(outerPoints);
+    createWallFromVertices(innerPoints);
+    createWallFromVertices(outerPoints);
   }
 
   /**
@@ -417,11 +427,19 @@ export function startGame(courseId) {
   activeCourse = courseId;
 
   const config = {
-    type: Phaser.AUTO,
+    type: Phaser.WEBGL,
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT,
     parent: 'game-container',
     backgroundColor: '#ffffff',
+    render: {
+      antialias: true,
+      powerPreference: 'high-performance',
+      failIfMajorPerformanceCaveat: true,
+      roundPixels: true,
+      pixelArt: false,
+      clearBeforeRender: true
+    },
     physics: {
       default: 'matter',
       matter: {

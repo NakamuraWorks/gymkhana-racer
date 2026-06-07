@@ -24,6 +24,7 @@
     "vitest": "^0.34.6"
   },
   "dependencies": {
-    "phaser": "^3.85.2"
+    "phaser": "^3.85.2",
+    "phaser3spectorjs": "^0.0.8"
   }
 }

@@ -22,6 +22,50 @@
     <!-- The game canvas will be created here by main.js -->
   </div>
 
+  <!-- チュートリアルオーバーレイ -->
+  <div id="tutorial-overlay">
+    <div class="tutorial-content">
+      <h2>🏁 How to Play</h2>
+  
+      <div class="tutorial-section">
+        <h3>⌨️ Keyboard Controls</h3>
+        <ul>
+          <li><span class="key-badge">←</span> <span class="key-badge">→</span> Steering</li>
+          <li><span class="key-badge">X</span> Accelerator</li>
+          <li><span class="key-badge">Z</span> Brake / Reverse</li>
+        </ul>
+      </div>
+  
+      <div class="tutorial-section">
+        <h3>🎮 Gamepad Controls</h3>
+        <ul>
+          <li>Left Stick Steering</li>
+          <li><span class="key-badge">A</span> Accelerator</li>
+          <li><span class="key-badge">B</span> Brake / Reverse</li>
+        </ul>
+      </div>
+  
+      <div class="tutorial-section">
+        <h3>🏁 Race Rules</h3>
+        <ul>
+          <li>🟢 Pass the green start/finish line to start</li>
+          <li>🟡 Pass yellow checkpoints in order</li>
+          <li>Complete all checkpoints to finish a lap</li>
+        </ul>
+      </div>
+  
+      <div class="tutorial-actions">
+        <button id="tutorial-skip-btn" class="tutorial-btn secondary">Skip</button>
+        <button id="tutorial-start-btn" class="tutorial-btn primary">Start Racing!</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- カウントダウンオーバーレイ -->
+  <div id="countdown-overlay">
+    <div id="countdown-text">3</div>
+  </div>
+
   <script type="module" src="/src/menu.js"></script>
 </body>
 

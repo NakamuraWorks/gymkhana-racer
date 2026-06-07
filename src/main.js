@@ -216,7 +216,14 @@ class GameScene extends Phaser.Scene {
       const lapText = this.add.text(
         20, 100 + (i * 25),
         '',
-        { fontSize: '16px', fill: '#666', backgroundColor: '#f0f0f0', padding: { x: 8, y: 3 } }
+        {
+          fontSize: '15px',
+          fill: '#d0d0d0',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          padding: { x: 10, y: 5 },
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: '4px'
+        }
       );
       lapText.setScrollFactor(0).setVisible(false);
       this.lapHistoryTexts.push(lapText);
@@ -226,23 +233,54 @@ class GameScene extends Phaser.Scene {
     this.timeText = this.add.text(
       20, 20,
       'Time: --:--.--',
-      { fontSize: '20px', fill: '#000', backgroundColor: '#fff', padding: { x: 10, y: 5 } }
+      {
+        fontSize: '22px',
+        fontWeight: 'bold',
+        fill: '#ffffff',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        padding: { x: 14, y: 8 },
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        borderRadius: '6px'
+      }
     ).setScrollFactor(0);
 
     this.bestTimeText = this.add.text(
-      20, 55,
+      20, 58,
       'Best: --:--.--',
-      { fontSize: '18px', fill: '#0066cc', backgroundColor: '#fff', padding: { x: 10, y: 5 } }
+      {
+        fontSize: '18px',
+        fontWeight: 'bold',
+        fill: '#4ade80',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        padding: { x: 14, y: 8 },
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        borderRadius: '6px'
+      }
     ).setScrollFactor(0);
 
     // メニューに戻るボタン
     const backButton = this.add.text(
       1100, 20,
       'Back to Menu',
-      { fontSize: '16px', fill: '#000', backgroundColor: '#fff', padding: { x: 10, y: 5 } }
+      {
+        fontSize: '15px',
+        fill: '#ffffff',
+        backgroundColor: 'rgba(233, 69, 96, 0.8)',
+        padding: { x: 14, y: 8 },
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        borderRadius: '6px'
+      }
     )
       .setScrollFactor(0)
-      .setInteractive();
+      .setInteractive({ cursor: 'pointer' });
+
+    backButton.on('pointerover', () => {
+      backButton.setStyle({ backgroundColor: 'rgba(233, 69, 96, 1)' });
+    });
+
+    backButton.on('pointerout', () => {
+      backButton.setStyle({ backgroundColor: 'rgba(233, 69, 96, 0.8)' });
+    });
 
     backButton.on('pointerdown', () => {
       shutdownGame();

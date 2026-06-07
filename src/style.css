@@ -7,59 +7,279 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  background-color: #242424;
-  color: rgba(255, 255, 255, 0.87);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background-color: #1a1a2e;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 canvas {
   display: block;
 }
 
+/* ===== メニュー ===== */
 #menu-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  background-color: #333;
-  padding: 40px;
-  border-radius: 10px;
+  gap: 20px;
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+  padding: 50px 60px;
+  border-radius: 16px;
   text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 400px;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+#menu-container h1 {
+  font-size: 2.8em;
+  font-weight: 700;
   margin: 0;
+  background: linear-gradient(90deg, #e94560, #ff6b6b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 2px;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin: 8px 0;
 }
 
-label {
-  font-size: 1.2em;
+.menu-item label {
+  font-size: 1.1em;
+  font-weight: 500;
+  color: #a0a0b0;
 }
 
-select, button {
+select {
   font-size: 1em;
-  padding: 0.6em 1.2em;
+  padding: 10px 16px;
   border-radius: 8px;
-  border: 1px solid transparent;
-  background-color: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(0, 0, 0, 0.3);
   color: #f0f0f0;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: all 0.2s ease;
+  min-width: 200px;
 }
 
-select:hover, button:hover {
-  border-color: #646cff;
+select:hover, select:focus {
+  border-color: #e94560;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.2);
 }
 
+#start-button {
+  font-size: 1.1em;
+  font-weight: 600;
+  padding: 14px 40px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 12px;
+  letter-spacing: 1px;
+}
+
+#start-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(233, 69, 96, 0.4);
+}
+
+#start-button:active {
+  transform: translateY(0);
+}
+
+/* ===== ゲームコンテナ ===== */
 #game-container {
   width: 100%;
   height: 100%;
+  position: relative;
+}
+
+/* ===== チュートリアルオーバーレイ ===== */
+#tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+#tutorial-overlay.active {
+  display: flex;
+}
+
+.tutorial-content {
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+  padding: 40px 50px;
+  border-radius: 16px;
+  max-width: 550px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.tutorial-content h2 {
+  font-size: 1.8em;
+  margin: 0 0 24px 0;
+  color: #e94560;
+  font-weight: 700;
+}
+
+.tutorial-section {
+  margin: 20px 0;
+  text-align: left;
+}
+
+.tutorial-section h3 {
+  font-size: 1.1em;
+  color: #ff6b6b;
+  margin: 0 0 12px 0;
+  font-weight: 600;
+}
+
+.tutorial-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tutorial-section li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 1em;
+  color: #d0d0e0;
+}
+
+.key-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 32px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.tutorial-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+.tutorial-btn {
+  font-size: 1em;
+  font-weight: 600;
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tutorial-btn.primary {
+  background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+  color: white;
+}
+
+.tutorial-btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(233, 69, 96, 0.4);
+}
+
+.tutorial-btn.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #a0a0b0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.tutorial-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ===== カウントダウン ===== */
+#countdown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#countdown-overlay.active {
+  display: flex;
+}
+
+#countdown-text {
+  font-size: 12em;
+  font-weight: 900;
+  color: #e94560;
+  text-shadow: 0 0 40px rgba(233, 69, 96, 0.6);
+  animation: countPulse 0.8s ease-in-out;
+}
+
+@keyframes countPulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===== レスポンシブ ===== */
+@media (max-width: 768px) {
+  #menu-container {
+    min-width: auto;
+    width: 90%;
+    padding: 30px;
+  }
+
+  #menu-container h1 {
+    font-size: 2em;
+  }
+
+  .tutorial-content {
+    padding: 30px;
+  }
+
+  #countdown-text {
+    font-size: 8em;
+  }
 }

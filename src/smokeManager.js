@@ -2,7 +2,7 @@
  * スモーク効果管理ユーティリティ
  *
  * ドリフト時に車の後方からスモークパーティクルを発生・更新する。
- * WebGL ParticleEmitter を使用することで draw call を削減し、GPU 加速を有効化する。
+ * 手動でパーティクルを管理して時間ベースの消滅を実現。
  *
  * @fileoverview ドリフトスモークエフェクト
  */
@@ -22,39 +22,15 @@ const {
 
 /**
  * スモークマネージャーを生成する。
- * Phaser ParticleEmitter を使用し、GPU バッチレンダリングに対応。
+ * 手動でパーティクルを管理して時間ベースの消滅を実現。
  *
  * @param {Phaser.Scene} scene - Phaser シーン
  * @returns {Object} smokeManager インスタンス
  */
 export function createSmokeManager(scene) {
-  /** @type {Phaser.GameObjects.Particles.ParticleEmitter | null} */
-  let emitter = null;
-
-  try {
-    const particleSystem = scene.add.particles('smoke');
-    emitter = particleSystem.createEmitter({
-      scale: {
-        from: START_SIZE / 64,
-        to: MAX_SIZE / 64
-      },
-      alpha: {
-        from: MAX_ALPHA,
-        to: 0
-      },
-      lifespan: 3000, // 3秒で自動消滅
-      frequency: SPAWN_INTERVAL,
-      quantity: 1,
-      maxParticles: 20,
-      emitting: false
-    });
-  } catch {
-    emitter = null;
-  }
-
-  // フォールバック用スプライト配列（WebGL 利用不可時）
-  const fallbackSprites = [];
-  let lastTime = 0;
+  /** @type {Phaser.GameObjects.Sprite[]} パーティクルスプライト配列 */
+  const particles = [];
+  let lastSpawnTime = 0;
 
   return {
     /**
@@ -67,70 +43,57 @@ export function createSmokeManager(scene) {
      */
     update(car, slipAngle, speed, heading) {
       const isSliding = Math.abs(slipAngle) > SLIP_ANGLE_THRESHOLD && speed > MIN_SPEED;
+      const now = scene.time.now;
 
-      if (emitter) {
-        // WebGL ParticleEmitter パス
-        const carLength = car.displayHeight || 48;
-        const backOffset = -carLength * 0.2;
-        const smokeX = car.x + Math.cos(heading) * backOffset;
-        const smokeY = car.y + Math.sin(heading) * backOffset;
+      // パーティクルの位置計算
+      const carLength = car.displayHeight || 48;
+      const backOffset = -carLength * 0.2;
+      const smokeX = car.x + Math.cos(heading) * backOffset;
+      const smokeY = car.y + Math.sin(heading) * backOffset;
 
-        emitter.emitX = smokeX;
-        emitter.emitY = smokeY;
-
-        if (isSliding) {
-          // ドリフト中のみ発生（lifespan: 3000ms で自動消滅）
-          emitter.start();
-        } else {
-          // 非ドリフト時は発生停止（既存パーティクルは3秒で自動消滅）
-          emitter.stop();
-        }
-      } else if (isSliding) {
-        // フォールバック: 個別スプライト
-        const now = scene.time.now;
-
-        if (now - lastTime > SPAWN_INTERVAL) {
-          if (fallbackSprites.length >= 5) {
-            const oldest = fallbackSprites.shift();
+      if (isSliding) {
+        // ドリフト中のみスモークを発生
+        if (now - lastSpawnTime > SPAWN_INTERVAL) {
+          if (particles.length >= 20) {
+            // 最も古いパーティクルを削除
+            const oldest = particles.shift();
             if (oldest) oldest.destroy();
           }
-
-          const carLength = car.displayHeight || 48;
-          const backOffset = -carLength * 0.2;
-          const smokeX = car.x + Math.cos(heading) * backOffset;
-          const smokeY = car.y + Math.sin(heading) * backOffset;
 
           const smoke = scene.add.sprite(smokeX, smokeY, 'smoke');
           smoke.setOrigin(0.5, 0.5);
           smoke.setAlpha(MAX_ALPHA);
-          const initialScale = START_SIZE / smoke.width;
-          smoke.setScale(initialScale);
+          smoke.setScale(START_SIZE / smoke.width);
           smoke.birthTime = now;
-          fallbackSprites.push(smoke);
-          lastTime = now;
+          particles.push(smoke);
           scene.children.moveBelow(smoke, car);
+          lastSpawnTime = now;
         }
+      }
 
-        for (let i = fallbackSprites.length - 1; i >= 0; i--) {
-          const smoke = fallbackSprites[i];
-          const age = now - smoke.birthTime;
+      // 全パーティクルを更新・削除
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        const age = now - p.birthTime;
 
-          let pxScale;
-          if (age < EXPAND_TIME) {
-            const scale = age / EXPAND_TIME;
-            pxScale = (START_SIZE + (MAX_SIZE - START_SIZE) * scale) / smoke.width;
-          } else {
-            pxScale = MAX_SIZE / smoke.width;
-          }
-          smoke.setScale(pxScale);
+        // 時間ベースのスケール変化
+        let pxScale;
+        if (age < EXPAND_TIME) {
+          const scale = age / EXPAND_TIME;
+          pxScale = (START_SIZE + (MAX_SIZE - START_SIZE) * scale) / p.width;
+        } else {
+          pxScale = MAX_SIZE / p.width;
+        }
+        p.setScale(pxScale);
 
-          const alpha = Math.max(0, MAX_ALPHA * (1 - age / LIFE_TIME));
-          smoke.setAlpha(alpha);
+        // 時間ベースのアルファ変化（LIFE_TIME後に完全消滅）
+        const alpha = Math.max(0, MAX_ALPHA * (1 - age / LIFE_TIME));
+        p.setAlpha(alpha);
 
-          if (age > LIFE_TIME) {
-            smoke.destroy();
-            fallbackSprites.splice(i, 1);
-          }
+        // LIFE_TIME経過したら削除
+        if (age > LIFE_TIME) {
+          p.destroy();
+          particles.splice(i, 1);
         }
       }
     },
@@ -139,15 +102,10 @@ export function createSmokeManager(scene) {
      * スモークマネージャーを破棄する。
      */
     destroy() {
-      if (emitter) {
-        emitter.stop();
-        emitter.destroy();
-        emitter = null;
+      for (const p of particles) {
+        p.destroy();
       }
-      for (const sprite of fallbackSprites) {
-        sprite.destroy();
-      }
-      fallbackSprites.length = 0;
+      particles.length = 0;
     }
   };
 }

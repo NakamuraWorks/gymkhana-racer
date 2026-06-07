@@ -9,4 +9,8 @@ export default defineConfig({
   optimizeDeps: {
     include: ['phaser'],
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
 });

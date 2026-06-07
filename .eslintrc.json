@@ -7,17 +7,68 @@
   },
   "parserOptions": {
     "ecmaVersion": 2022,
-    "sourceType": "module"
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
   },
-  "globals": {
-    "Phaser": "readonly"
+  "plugins": ["jsdoc", "import"],
+  "settings": {
+    "import/resolver": {
+      "node": {
+        "extensions": [".js", ".json"]
+      }
+    },
+    "jsdoc": {
+      "mode": "typescript",
+      "tagNamePreference": {
+        "returns": "returns",
+        "arg": "param",
+        "function": "function",
+        "class": "class"
+      }
+    }
   },
   "rules": {
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    // 既存ルール
+    "no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^Phaser" }
+    ],
     "no-console": ["warn", { "allow": ["warn", "error"] }],
     "prefer-const": "warn",
     "no-var": "warn",
-    "eqeqeq": "warn",
-    "curly": "warn"
+    "eqeqeq": ["warn", "always"],
+    "curly": ["warn", "all"],
+
+    // import plugin ルール
+    "import/order": [
+      "warn",
+      {
+        "groups": ["builtin", "external", "parent", "sibling", "index"],
+        "newlines-between": "always",
+        "alphabetize": {
+          "order": "asc",
+          "caseInsensitive": true
+        }
+      }
+    ],
+    "import/no-unresolved": "error",
+    "import/named": "error",
+
+    // jsdoc plugin ルール
+    "jsdoc/check-param-names": "warn",
+    "jsdoc/check-property-names": "warn",
+    "jsdoc/require-param": "warn",
+    "jsdoc/require-param-name": "warn",
+    "jsdoc/require-param-type": "warn",
+    "jsdoc/require-param-description": "warn",
+    "jsdoc/require-returns": "warn",
+    "jsdoc/require-returns-check": "warn",
+    "jsdoc/require-returns-type": "warn",
+    "jsdoc/require-description": "warn",
+    "jsdoc/require-description-complete-sentence": "warn",
+    "jsdoc/require-example": "off",
+    "jsdoc/tag-lines": ["warn", "any", { "startLines": 1 }]
   }
 }

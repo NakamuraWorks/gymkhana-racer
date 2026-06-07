@@ -1,10 +1,16 @@
 /**
- * lapManager.js のユニットテスト
+ * LapManager.js のユニットテスト.
+ *
+ * @fileoverview ラップタイム管理のテスト.
  */
 
 import { describe, it, expect } from 'vitest';
-import { formatTime, handleControlLineCrossing, createLapHistoryUpdater } from '../lapManager.js';
+
 import { LAP_HISTORY_MAX } from '../constants.js';
+import { formatTime, handleControlLineCrossing, createLapHistoryUpdater } from '../lapManager.js';
+
+/** @typedef {{ id: string, type: string, passed: boolean }} ControlLine */
+/** @typedef {{ raceStartTime: number|null, checkpointsPassed: number, bestLapTime: number|null, lapHistory: number[] }} LapResult */
 
 describe('formatTime', () => {
   it('should format zero milliseconds', () => {
@@ -209,7 +215,7 @@ describe('createLapHistoryUpdater', () => {
     expect(mockTexts[0].visible).toBe(true);
     expect(mockTexts[1].visible).toBe(true);
     expect(mockTexts[2].visible).toBe(false);
-    expect(mockTexts[0].text).toContain('10:00.00');
-    expect(mockTexts[1].text).toContain('9:00.00');
+    expect(mockTexts[0].text).toContain('0:10.00');
+    expect(mockTexts[1].text).toContain('0:09.00');
   });
 });

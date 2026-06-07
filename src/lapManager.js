@@ -3,6 +3,8 @@
  *
  * コントロールライン通過の判定、ラップタイム計算、
  * ベストタイム管理、ラップ履歴のUI表示などを担当する。
+ *
+ * @fileoverview ラップタイム管理ユーティリティ
  */
 
 import { LAP_HISTORY_MAX } from './constants.js';
@@ -24,13 +26,13 @@ export function formatTime(milliseconds) {
  * コントロールライン通過を処理する。
  *
  * @param {string} controlLineId - 通過したコントロールラインの ID
- * @param {Array} controlLines - コントロールライン配列
+ * @param {Array<{ id: string, type: string, passed: boolean, points?: Array<{x: number, y: number}> }>} controlLines - コントロールライン配列
  * @param {number|null} raceStartTime - レース開始時刻（Phaser.time.now）
  * @param {number} checkpointsPassed - 通過済みチェックポイント数
  * @param {number|null} bestLapTime - ベストラップタイム
- * @param {Array} lapHistory - ラップ履歴配列
+ * @param {Array<number>} lapHistory - ラップ履歴配列
  * @param {number} now - 現在時刻（Phaser.time.now）
- * @returns {Object|null} 更新された状態オブジェクト、または null
+ * @returns {{ raceStartTime: number, checkpointsPassed: number, bestLapTime: number, lapHistory: number[] }|null} 更新された状態オブジェクト、または null
  */
 export function handleControlLineCrossing(
   controlLineId,
@@ -50,7 +52,7 @@ export function handleControlLineCrossing(
       // レース開始
       const newRaceStartTime = now;
       const newCheckpointsPassed = 0;
-      controlLines.forEach(l => l.passed = false);
+      controlLines.forEach(l => { l.passed = false; });
       line.passed = true;
 
       return {
@@ -74,7 +76,7 @@ export function handleControlLineCrossing(
         : bestLapTime;
 
       // 新しいラップを開始
-      controlLines.forEach(l => l.passed = false);
+      controlLines.forEach(l => { l.passed = false; });
       line.passed = true;
 
       return {
@@ -102,8 +104,8 @@ export function handleControlLineCrossing(
 /**
  * ラップ履歴表示を更新する関数を生成する。
  *
- * @param {Array<Phaser.GameObjects.Text>} lapHistoryTexts - UI テキストオブジェクト配列
- * @returns {Function} updateLapHistoryDisplay 関数
+ * @param {Array<{ setText: (text: string) => void, setVisible: (visible: boolean) => void, setStyle: (style: Object) => void }>} lapHistoryTexts - UI テキストオブジェクト配列
+ * @returns {(lapHistory: Array<number>, bestLapTime: number|null) => void} updateLapHistoryDisplay 関数
  */
 export function createLapHistoryUpdater(lapHistoryTexts) {
   return function updateLapHistoryDisplay(lapHistory, bestLapTime) {

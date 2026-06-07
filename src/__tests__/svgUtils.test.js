@@ -1,12 +1,18 @@
 /**
- * svgUtils.js のユニットテスト
+ * SvgUtils.js のユニットテスト.
+ *
+ * @fileoverview SVGパーサーのテスト.
  */
 
 import { describe, it, expect } from 'vitest';
+
 import { parsePath, parseLineElement, parseSpawnPoint, isValidVertices } from '../svgUtils.js';
 
 /**
- * テスト用 SVG Document を生成するヘルパー
+ * テスト用 SVG Document を生成するヘルパー.
+ *
+ * @param {string} html - SVG HTML文字列.
+ * @returns {Document} パース済みのSVG Document.
  */
 function createMockSVG(html) {
   const parser = new DOMParser();
@@ -45,7 +51,7 @@ describe('parsePath', () => {
     const result = parsePath(svg, 'test', 2, 2, 100, 200);
 
     expect(result).not.toBeNull();
-    expect(result[0]).toEqual({ x: 10 + 100, y: 20 + 200 }); // (120, 240) ... wait: 10*2+100=120, 20*2+200=240
+    expect(result[0]).toEqual({ x: 10 * 2 + 100, y: 20 * 2 + 200 }); // (120, 240)
     expect(result[0].x).toBe(120);
     expect(result[0].y).toBe(240);
     expect(result[1].x).toBe(160);
@@ -163,7 +169,7 @@ describe('parseSpawnPoint', () => {
 
 describe('isValidVertices', () => {
   it('should return false for null', () => {
-    expect(isValidVertices(null)).toBe(false);
+    expect(isValidVertices(null)).toBeFalsy();
   });
 
   it('should return false for empty array', () => {

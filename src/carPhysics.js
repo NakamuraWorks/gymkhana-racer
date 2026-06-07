@@ -2,6 +2,8 @@
  * 車両挙動関連ユーティリティ
  *
  * 車のステアリング、角速度、駆動・制動、慣性摩擦などを計算する純粋関数群。
+ *
+ * @fileoverview 車両物理演算ユーティリティ
  */
 
 import {
@@ -11,10 +13,7 @@ import {
   BRAKE_SPEED_THRESHOLD,
   REVERSE_FORCE_RATIO,
   BRAKE_DAMPING_FACTOR,
-  IDLE_FRICTION_FACTOR,
-  ANGULAR_DAMPING_BASE,
-  ANGULAR_DAMPING_SPEED_FACTOR,
-  ANGULAR_DAMPING_SPEED_THRESHOLD
+  IDLE_FRICTION_FACTOR
 } from './constants.js';
 
 /**
@@ -25,7 +24,7 @@ import {
  * @param {boolean} opts.isReversing - 後進中かどうか
  * @param {number} opts.heading - 車の進行方向（ラジアン）
  * @param {number} [opts.maxSteerAngle=MAX_STEER_ANGLE] - 最大ステアリング角
- * @returns {Object} { steerInputForSteer, targetDirection, angleDiff }
+ * @returns {{ steerInputForSteer: number, targetDirection: number, angleDiff: number }}
  */
 export function computeSteering({
   steerInput,
@@ -52,7 +51,7 @@ export function computeSteering({
  * @param {number} opts.angleDiff - 目標方向との角度差
  * @param {number} opts.slipAngle - スリップ角
  * @param {number} opts.vForward - 前進方向速度成分
- * @param {Object} [opts.tractionParams=TRACTION_PARAMS] - トラクション係数
+ * @param {{ base: number, slipLoss: number, tractionMin: number, tractionMax: number }} [opts.tractionParams=TRACTION_PARAMS] - トラクション係数
  * @returns {number} 新しい角速度
  */
 export function computeAngularVelocity({
@@ -76,7 +75,7 @@ export function computeAngularVelocity({
  * 駆動力を車に適用する。
  *
  * @param {Object} opts
- * @param {Phaser.Physics.Matter.Image} opts.car - 車の Matter body
+ * @param {{ applyForce: (force: {x: number, y: number}) => void }} opts.car - 車の Matter body
  * @param {number} opts.angle - 進行方向（ラジアン）
  * @param {number} [opts.forceMagnitude=DRIVE_FORCE_MAGNITUDE] - 力の大きさ
  */
@@ -94,7 +93,7 @@ export function applyDriveForce({
  * ブレーキまたは後進の力を車に適用する。
  *
  * @param {Object} opts
- * @param {Phaser.Physics.Matter.Image} opts.car - 車の Matter body
+ * @param {{ applyForce: (force: {x: number, y: number}) => void, setVelocity: (vx: number, vy: number) => void, body: { velocity: { x: number, y: number } } }} opts.car - 車の Matter body
  * @param {number} opts.angle - 進行方向（ラジアン）
  * @param {number} opts.speed - 現在の速度
  * @param {number} [opts.forceMagnitude=DRIVE_FORCE_MAGNITUDE] - 力の大きさ
@@ -114,16 +113,26 @@ export function applyBrakeOrReverse({
     car.applyForce({ x: backForceX, y: backForceY });
   } else {
     // ブレーキ
-    car.setVelocity(car.body.velocity.x * BRAKE_DAMPING_FACTOR, car.body.velocity.y * BRAKE_DAMPING_FACTOR);
+    if (car.body && car.body.velocity) {
+      car.setVelocity(
+        car.body.velocity.x * BRAKE_DAMPING_FACTOR,
+        car.body.velocity.y * BRAKE_DAMPING_FACTOR
+      );
+    }
   }
 }
 
 /**
- * _idle（アクセル・ブレーキなし）時の慣性摩擦を適用する。
+ * idle（アクセル・ブレーキなし）時の慣性摩擦を適用する。
  *
  * @param {Object} opts
- * @param {Phaser.Physics.Matter.Image} opts.car - 車の Matter body
+ * @param {{ setVelocity: (vx: number, vy: number) => void, body: { velocity: { x: number, y: number } } }} opts.car - 車の Matter body
  */
 export function applyIdleFriction({ car }) {
-  car.setVelocity(car.body.velocity.x * IDLE_FRICTION_FACTOR, car.body.velocity.y * IDLE_FRICTION_FACTOR);
+  if (car.body && car.body.velocity) {
+    car.setVelocity(
+      car.body.velocity.x * IDLE_FRICTION_FACTOR,
+      car.body.velocity.y * IDLE_FRICTION_FACTOR
+    );
+  }
 }

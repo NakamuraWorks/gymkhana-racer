@@ -2,13 +2,15 @@
  * 入力処理ユーティリティ
  *
  * キーボードおよびゲームパッドの入力を統合・抽象化する。
+ *
+ * @fileoverview 入力管理ユーティリティ
  */
 
 /**
  * ステアリング入力を取得する。
  *
- * @param {Phaser.Input.Keyboard.CursorKeys} cursors - キーボード矢印キー
- * @param {Phaser.Input.Gamepad.Gamepad|null} gamepad - ゲームパッド（未接続時は null）
+ * @param {Object} cursors - キーボード矢印キー
+ * @param {Object|null} gamepad - ゲームパッド（未接続時は null）
  * @returns {number} ステアリング値（-1 〜 1 の範囲）
  */
 export function getSteeringInput(cursors, gamepad) {
@@ -31,9 +33,9 @@ export function getSteeringInput(cursors, gamepad) {
 /**
  * アクセル・ブレーキ入力を取得する。
  *
- * @param {Phaser.Input.Gamepad.Gamepad|null} gamepad - ゲームパッド
- * @param {Phaser.Input.Keyboard.Key} keyX - アクセルキー（X）
- * @param {Phaser.Input.Keyboard.Key} keyZ - ブレーキキー（Z）
+ * @param {Object|null} gamepad - ゲームパッド
+ * @param {Object} keyX - アクセルキー（X）
+ * @param {Object} keyZ - ブレーキキー（Z）
  * @returns {{ accel: boolean, brake: boolean }}
  */
 export function getGamepadButtons(gamepad, keyX, keyZ) {
@@ -49,7 +51,7 @@ export function getGamepadButtons(gamepad, keyX, keyZ) {
 /**
  * ゲームパッドのボタン状態を安全に取得する。
  *
- * @param {Phaser.Input.Gamepad.Gamepad|null} gamepad - ゲームパッド
+ * @param {Object|null} gamepad - ゲームパッド
  * @param {number} index - ボタンインデックス
  * @returns {boolean} ボタンが押されているかどうか
  */
@@ -63,15 +65,15 @@ function safeGetButton(gamepad, index) {
 /**
  * ゲームパッド入力を初期化する。
  *
- * @param {Phaser.Scene} scene - Phaser シーン
- * @returns {Phaser.Input.Gamepad.Gamepad|null} 接続されたゲームパッド、ない場合は null
+ * @param {Object} scene - Phaser シーン
+ * @returns {Object|null} 接続されたゲームパッド、ない場合は null
  */
 export function initializeGamepad(scene) {
   if (!scene.input.gamepad) {
     return null;
   }
 
-  scene.input.gamepad.start();
+  scene.input.gamepad.start?.();
 
   // すでに接続されているパッドがある場合は即座に返す
   if (scene.input.gamepad.total > 0) {

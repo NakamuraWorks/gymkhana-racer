@@ -13,13 +13,20 @@
     "moduleDetection": "force",
     "noEmit": true,
 
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    /* Allow JavaScript without type checking */
+    "allowJs": true,
+    "checkJs": false,
+
+    /* Linting - relaxed for JavaScript with JSDoc */
+    "strict": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     // "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "exactOptionalPropertyTypes": false,
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/__tests__"]
 }

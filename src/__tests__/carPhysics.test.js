@@ -1,8 +1,11 @@
 /**
- * carPhysics.js のユニットテスト
+ * CarPhysics.js のユニットテスト.
+ *
+ * @fileoverview 車両物理演算のテスト.
  */
 
 import { describe, it, expect } from 'vitest';
+
 import {
   computeSteering,
   computeAngularVelocity,
@@ -12,13 +15,14 @@ import {
 } from '../carPhysics.js';
 import {
   MAX_STEER_ANGLE,
-  TRACTION_PARAMS,
   DRIVE_FORCE_MAGNITUDE,
-  BRAKE_SPEED_THRESHOLD,
   REVERSE_FORCE_RATIO,
   BRAKE_DAMPING_FACTOR,
   IDLE_FRICTION_FACTOR
 } from '../constants.js';
+
+/** @typedef {{ applyForce: (force: {x: number, y: number}) => void }} MockCar */
+/** @typedef {{ body: { velocity: {x: number, y: number} }, setVelocity: (vx: number, vy: number) => void }} MockCarWithBody */
 
 describe('computeSteering', () => {
   it('should return correct angleDiff for positive steer input', () => {

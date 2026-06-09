@@ -15,7 +15,7 @@ import {
 } from './carPhysics.js';
 import { formatTime, handleControlLineCrossing, createLapHistoryUpdater } from './lapManager.js';
 import { createSmokeManager } from './smokeManager.js';
-import { getSteeringInput, getGamepadButtons, initializeGamepad } from './inputManager.js';
+import { getSteeringInput, getGamepadButtons, connectGamepad, updateGamepad } from './inputManager.js';
 import { computeStraightStabilization } from './stabilization.js';
 import {
   WORLD_WIDTH,
@@ -56,13 +56,18 @@ class GameScene extends Phaser.Scene {
     this.load.text('collisionSVG', `${activeCourse}/collision.svg`);
   }
 
-  /** @override */
-  create() {
-    // 入力設定
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.keyX = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    this.keyZ = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
-    this.gamepad = initializeGamepad(this);
+   /** @override */
+   create() {
+     console.log('[GameScene] create() called');
+
+     // 入力設定
+     this.cursors = this.input.keyboard.createCursorKeys();
+     this.keyX = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+     this.keyZ = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+
+     // ネイティブゲームパッドを接続
+     connectGamepad();
+     console.log('[GameScene] Gamepad initialization done');
 
     // ラップ管理状態
     this.raceStartTime = null;
@@ -335,17 +340,27 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  /** @override */
-  update() {
-    if (!this.car || !this.car.body) return;
+   /** @override */
+   update() {
+     if (!this.car || !this.car.body) return;
 
-    // ゲームパッド再接続検出
-    if (!this.gamepad && this.input.gamepad && this.input.gamepad.total > 0) {
-      this.gamepad = this.input.gamepad.getPad(0);
-    }
+     // ゲームパッド状態を更新（ネイティブ API）
+     updateGamepad();
 
-    const steerInput = getSteeringInput(this.cursors, this.gamepad);
-    const { accel, brake } = getGamepadButtons(this.gamepad, this.keyX, this.keyZ);
+     // デバッグ用：ゲームパッド状態を定期的にログ出力
+     if (this.frame % 120 === 0 && typeof navigator.getGamepads !== 'undefined') {
+       const gamepads = navigator.getGamepads();
+       if (gamepads[0]) {
+         console.log('[GameScene] Gamepad state:', {
+           connected: gamepads[0].connected,
+           axes: gamepads[0].axes,
+           buttons: gamepads[0].buttons.map(b => b.pressed)
+         });
+       }
+     }
+
+    const steerInput = getSteeringInput(this.cursors);
+    const { accel, brake } = getGamepadButtons(this.keyX, this.keyZ);
 
     const velocity = this.car.body.velocity;
     const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2);
